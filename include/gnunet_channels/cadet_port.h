@@ -1,14 +1,15 @@
 #pragma once
 
 #include <gnunet_channels/channel.h>
-#include "cadet.h"
 
 namespace gnunet_channels {
 
 class Service;
 class ChannelImpl;
 
-class CadetPort : public std::enable_shared_from_this<CadetPort> {
+class CadetPort {
+    struct Impl;
+
 public:
     using OnAccept = std::function<void(sys::error_code, Channel)>;
 
@@ -16,8 +17,10 @@ public:
     CadetPort(Service&);
     CadetPort(std::shared_ptr<Cadet>);
 
+    CadetPort(const CadetPort&)            = delete;
+    CadetPort& operator=(const CadetPort&) = delete;
+
     void open(const std::string& shared_secret, OnAccept);
-    void close();
 
     Scheduler& scheduler();
     asio::io_service& get_io_service() { return _ios; }
@@ -36,9 +39,7 @@ private:
 
 private:
     asio::io_service& _ios;
-    std::shared_ptr<Cadet> _cadet;
-    GNUNET_CADET_Port *_port = nullptr;
-    OnAccept _on_accept;
+    std::shared_ptr<Impl> _impl;
 };
 
 } // gnunet_channels namespace

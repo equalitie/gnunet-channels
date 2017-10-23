@@ -6,8 +6,8 @@
 
 #include <gnunet/gnunet_transport_hello_service.h>
 
-#include <hello_message.h>
-#include <scheduler.h>
+#include "hello_message.h"
+#include "scheduler.h"
 
 namespace gnunet_channels {
 

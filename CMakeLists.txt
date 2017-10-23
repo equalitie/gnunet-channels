@@ -31,7 +31,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -ggdb ${SANITIZE}")
 include_directories(
     "${Boost_INCLUDE_DIR}"
     "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}/src" # TODO: temporary
     "${GNUNET_BIN_DIR}/include")
 
 file(GLOB sources

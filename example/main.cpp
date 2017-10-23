@@ -8,10 +8,9 @@
 #include <gnunet/platform.h>
 #include <gnunet/gnunet_cadet_service.h>
 
-#include <scheduler.h>
 #include <gnunet_channels/service.h>
 #include <gnunet_channels/channel.h>
-#include <cadet_port.h>
+#include <gnunet_channels/cadet_port.h>
 
 using namespace std;
 using namespace gnunet_channels;
@@ -26,7 +25,9 @@ struct Chat {
     {
         start_receiving();
 
-        asio::spawn(channel->get_io_service(), [this] (auto yield) {
+        auto wd = was_destroyed;
+
+        asio::spawn(channel->get_io_service(), [this, wd] (auto yield) {
                 string out;
                 asio::streambuf buffer(512);
 
@@ -34,6 +35,7 @@ struct Chat {
                     sys::error_code ec;
                     size_t n = asio::async_read_until(_input, buffer, '\n', yield[ec]);
                     if (ec) break;
+                    if (*wd) return;
                     out.resize(n - 1);
                     buffer.sgetn((char*) out.c_str(), n - 1);
                     buffer.consume(1); // new line
@@ -54,11 +56,9 @@ struct Chat {
 
     shared_ptr<bool> was_destroyed;
     unique_ptr<Channel> channel;
+    unique_ptr<CadetPort> port;
     asio::posix::stream_descriptor _input;
 };
-
-shared_ptr<CadetPort> cadet_port;
-shared_ptr<Chat> chat;
 
 static void print_usage(const char* app_name)
 {
@@ -68,10 +68,12 @@ static void print_usage(const char* app_name)
             "otherwise it acts as a server\n";
 }
 
+shared_ptr<Chat> chat;
+
 int main(int argc, char* const* argv)
 {
     if (argc != 3 && argc != 4) {
-        print_usage(argc[0]);
+        print_usage(argv[0]);
         return 1;
     }
     
@@ -90,8 +92,6 @@ int main(int argc, char* const* argv)
     asio::signal_set signals(ios, SIGINT, SIGTERM);
 
     signals.async_wait([&](sys::error_code, int /* signal_number */) {
-            if (cadet_port) cadet_port->close();
-            cadet_port.reset();
             chat.reset();
         });
 
@@ -110,8 +110,9 @@ int main(int argc, char* const* argv)
              }
              else {
                  cout << "Accepting on port \"" << port << "\"" << endl;
-                 cadet_port = make_shared<CadetPort>(service);
-                 cadet_port->open(port, [] (sys::error_code, auto ch) {
+
+                 chat->port = make_unique<CadetPort>(service);
+                 chat->port->open(port, [] (sys::error_code, auto ch) {
                          cout << "Accepted channel" << endl;
                          chat->channel = make_unique<Channel>(move(ch));
                          chat->start();
