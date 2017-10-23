@@ -15,7 +15,6 @@
 
 using namespace std;
 using namespace gnunet_channels;
-namespace posix = boost::asio::posix;
 
 struct Chat {
     Chat(asio::io_service& ios)
@@ -55,15 +54,26 @@ struct Chat {
 
     shared_ptr<bool> was_destroyed;
     unique_ptr<Channel> channel;
-    posix::stream_descriptor _input;
+    asio::posix::stream_descriptor _input;
 };
 
 shared_ptr<CadetPort> cadet_port;
 shared_ptr<Chat> chat;
 
+static void print_usage(const char* app_name)
+{
+    cerr << "Usage:\n";
+    cerr << "    " << app_name << " <config-file> <secret-phrase> [peer-id]\n";
+    cerr << "If [peer-id] is used the app acts as a client, "
+            "otherwise it acts as a server\n";
+}
+
 int main(int argc, char* const* argv)
 {
-    assert(argc >= 3);
+    if (argc != 3 && argc != 4) {
+        print_usage(argc[0]);
+        return 1;
+    }
     
     asio::io_service ios;
     
