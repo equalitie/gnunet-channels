@@ -17,7 +17,11 @@ public:
     Service(const Service&) = delete;
     Service& operator=(const Service&) = delete;
 
-    void async_setup(OnSetup);
+    template<class Token>
+    typename asio::async_result
+        < typename asio::handler_type<Token, void(sys::error_code)>::type
+        >::type
+    async_setup(Token&& token);
 
     asio::io_service& get_io_service();
 
@@ -27,7 +31,29 @@ public:
     std::shared_ptr<Cadet>& cadet();
 
 private:
+    void async_setup_impl(OnSetup);
+
+private:
     std::shared_ptr<Impl> _impl;
 };
+
+//--------------------------------------------------------------------
+template<class Token>
+typename asio::async_result
+    < typename asio::handler_type<Token, void(sys::error_code)>::type
+    >::type
+Service::async_setup(Token&& token)
+{
+    using Handler = typename asio::handler_type< Token
+                                               , void(sys::error_code)
+                                               >::type;
+
+    Handler handler(std::forward<Token>(token));
+    asio::async_result<Handler> result(handler);
+
+    async_setup_impl(std::move(handler));
+
+    return result.get();
+}
 
 } // gnunet_channels namespace

@@ -36,7 +36,7 @@ shared_ptr<Cadet>& Service::cadet()
     return _impl->cadet;
 }
 
-void Service::async_setup(OnSetup on_setup)
+void Service::async_setup_impl(OnSetup on_setup)
 {
     // TODO: Return error code
     assert(!_impl->cadet_connect);
