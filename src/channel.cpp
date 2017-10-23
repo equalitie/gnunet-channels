@@ -1,8 +1,14 @@
+#include <gnunet_channels/service.h>
 #include <gnunet_channels/channel.h>
 #include "channel_impl.h"
 
 using namespace std;
 using namespace gnunet_channels;
+
+Channel::Channel(Service& service)
+    : Channel(service.cadet())
+{
+}
 
 Channel::Channel(std::shared_ptr<Cadet> cadet)
     : _scheduler(cadet->scheduler())

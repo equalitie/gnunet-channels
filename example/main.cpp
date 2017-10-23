@@ -1,25 +1,20 @@
 #include <iostream>
-#include <memory>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/streambuf.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 #include <boost/asio/read_until.hpp>
-#include <boost/optional.hpp>
 
 #include <gnunet/platform.h>
 #include <gnunet/gnunet_cadet_service.h>
 
 #include <scheduler.h>
+#include <gnunet_channels/service.h>
 #include <gnunet_channels/channel.h>
 #include <cadet_port.h>
 
-#include <hello_get.h>
-#include <cadet_connect.h>
-
 using namespace std;
 using namespace gnunet_channels;
-using boost::optional;
 namespace posix = boost::asio::posix;
 
 struct Chat {
@@ -31,8 +26,6 @@ struct Chat {
     void start()
     {
         start_receiving();
-
-        auto& ios = channel->get_io_service();
 
         asio::spawn(channel->get_io_service(), [this] (auto yield) {
                 string out;
@@ -73,9 +66,8 @@ int main(int argc, char* const* argv)
     assert(argc >= 3);
     
     asio::io_service ios;
-    auto work = optional<asio::io_service::work>(ios);
     
-    Scheduler scheduler(argv[1], ios);
+    Service service(argv[1], ios);
     
     string target_id;
     string port = argv[2];
@@ -88,45 +80,33 @@ int main(int argc, char* const* argv)
     asio::signal_set signals(ios, SIGINT, SIGTERM);
 
     signals.async_wait([&](sys::error_code, int /* signal_number */) {
-
             if (cadet_port) cadet_port->close();
-
-            cout << "cadet_port use_count: " << cadet_port.use_count() << endl;
-
             cadet_port.reset();
-            work.reset();
             chat.reset();
         });
 
-    auto cadet_connect = make_shared<CadetConnect>(scheduler);
-    cadet_connect->run([&scheduler, &target_id, &port](shared_ptr<Cadet> cadet) {
-    
-            auto hello_get = make_shared<HelloGet>(scheduler);
-    
-            hello_get->run([hello_get, cadet, &target_id, &port](HelloMessage m) {
-                    cout << "I am " << m.peer_identity() << endl;
-    
-                    chat = make_shared<Chat>(cadet->get_io_service());
+    service.async_setup([&target_id, &service, port] (sys::error_code ec) {
+             chat = make_shared<Chat>(service.get_io_service());
 
-                    if (!target_id.empty()) {
-                        cout << "Connecting to " << target_id << endl;
+             if (!target_id.empty()) {
+                 cout << "Connecting to " << target_id << endl;
 
-                        chat->channel = make_unique<Channel>(cadet);
-                        chat->channel->connect(target_id, port,
-                                [](sys::error_code e) {
-                                    cout << "Connect " << e.message() << endl;
-                                    chat->start();
-                                });
-                    }
-                    else {
-                        cadet_port = make_shared<CadetPort>(cadet);
-                        cadet_port->open(port, [] (sys::error_code, auto ch) {
-                                cout << "Accepted channel" << endl;
-                                chat->channel = make_unique<Channel>(move(ch));
-                                chat->start();
-                            });
-                    }
-                });
+                 chat->channel = make_unique<Channel>(service);
+                 chat->channel->connect(target_id, port,
+                         [](sys::error_code e) {
+                             cout << "Connect " << e.message() << endl;
+                             chat->start();
+                         });
+             }
+             else {
+                 cout << "Accepting on port \"" << port << "\"" << endl;
+                 cadet_port = make_shared<CadetPort>(service);
+                 cadet_port->open(port, [] (sys::error_code, auto ch) {
+                         cout << "Accepted channel" << endl;
+                         chat->channel = make_unique<Channel>(move(ch));
+                         chat->start();
+                     });
+             }
         });
     
     ios.run();

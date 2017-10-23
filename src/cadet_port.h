@@ -5,6 +5,7 @@
 
 namespace gnunet_channels {
 
+class Service;
 class ChannelImpl;
 
 class CadetPort : public std::enable_shared_from_this<CadetPort> {
@@ -12,6 +13,7 @@ public:
     using OnAccept = std::function<void(sys::error_code, Channel)>;
 
 public:
+    CadetPort(Service&);
     CadetPort(std::shared_ptr<Cadet>);
 
     void open(const std::string& shared_secret, OnAccept);

@@ -9,6 +9,7 @@ namespace gnunet_channels {
 class Cadet;
 class ChannelImpl;
 class Scheduler;
+class Service;
 
 class Channel {
 public:
@@ -16,6 +17,7 @@ public:
     using OnReceive = std::function<void(sys::error_code, std::string)>;
 
 public:
+    Channel(Service&);
     Channel(std::shared_ptr<Cadet>);
     Channel(std::shared_ptr<ChannelImpl>);
 

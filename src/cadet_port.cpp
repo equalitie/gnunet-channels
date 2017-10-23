@@ -4,9 +4,14 @@
 #include <iostream>
 #include <gnunet_channels/channel.h>
 #include <gnunet_channels/error.h>
+#include <gnunet_channels/service.h>
 
 using namespace std;
 using namespace gnunet_channels;
+
+CadetPort::CadetPort(Service& service)
+    : CadetPort(service.cadet())
+{}
 
 CadetPort::CadetPort(shared_ptr<Cadet> cadet)
     : _ios(cadet->get_io_service())
