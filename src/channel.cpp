@@ -29,9 +29,9 @@ asio::io_service& Channel::get_io_service()
     return _ios;
 }
 
-void Channel::connect( std::string target_id
-                     , const std::string& shared_secret
-                     , OnConnect h)
+void Channel::connect_impl( std::string target_id
+                          , const std::string& shared_secret
+                          , OnConnect h)
 {
     _impl->connect(move(target_id), shared_secret, move(h));
 }
@@ -41,7 +41,7 @@ void Channel::send(const std::string& data)
     _impl->send(data);
 }
 
-void Channel::receive(OnReceive h)
+void Channel::receive_impl(OnReceive h)
 {
     _impl->receive(move(h));
 }

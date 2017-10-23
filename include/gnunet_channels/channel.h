@@ -29,19 +29,74 @@ public:
 
     asio::io_service& get_io_service();
 
-    void connect( std::string target_id
-                , const std::string& shared_secret
-                , OnConnect);
+    template<class Token>
+    typename asio::async_result
+        < typename asio::handler_type<Token, void(sys::error_code)>::type
+        >::type
+    connect( std::string target_id
+           , const std::string& shared_secret
+           , Token&&);
 
     void send(const std::string&);
-    void receive(OnReceive);
+
+    template<class Token>
+    typename asio::async_result
+        < typename asio::handler_type<Token, void(sys::error_code, std::string)>::type
+        >::type
+    receive(Token&& token);
 
     ~Channel();
+
+private:
+    void connect_impl( std::string target_id
+                     , const std::string& shared_secret
+                     , OnConnect);
+
+    void receive_impl(OnReceive);
 
 private:
     Scheduler& _scheduler;
     asio::io_service& _ios;
     std::shared_ptr<ChannelImpl> _impl;
 };
+
+//--------------------------------------------------------------------
+template<class Token>
+typename asio::async_result
+    < typename asio::handler_type<Token, void(sys::error_code)>::type
+    >::type
+Channel::connect( std::string target_id
+                , const std::string& shared_secret
+                , Token&& token)
+{
+    using Handler = typename asio::handler_type< Token
+                                               , void(sys::error_code)
+                                               >::type;
+
+    Handler handler(std::forward<Token>(token));
+    asio::async_result<Handler> result(handler);
+
+    connect_impl(std::move(target_id), shared_secret, std::move(handler));
+
+    return result.get();
+}
+
+template<class Token>
+typename asio::async_result
+    < typename asio::handler_type<Token, void(sys::error_code, std::string)>::type
+    >::type
+Channel::receive(Token&& token)
+{
+    using Handler = typename asio::handler_type< Token
+                                               , void(sys::error_code, std::string)
+                                               >::type;
+
+    Handler handler(std::forward<Token>(token));
+    asio::async_result<Handler> result(handler);
+
+    receive_impl(std::move(handler));
+
+    return result.get();
+}
 
 } // gnunet_channels namespace

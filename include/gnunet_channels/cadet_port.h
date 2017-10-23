@@ -20,7 +20,11 @@ public:
     CadetPort(const CadetPort&)            = delete;
     CadetPort& operator=(const CadetPort&) = delete;
 
-    void open(const std::string& shared_secret, OnAccept);
+    template<class Token>
+    typename asio::async_result
+        < typename asio::handler_type<Token, void(sys::error_code, Channel)>::type
+        >::type
+    open(const std::string& shared_secret, Token&&);
 
     Scheduler& scheduler();
     asio::io_service& get_io_service() { return _ios; }
@@ -28,6 +32,8 @@ public:
     ~CadetPort();
 
 private:
+    void open_impl(const std::string& shared_secret, OnAccept);
+
     static
     void* channel_incoming( void *cls
                           , GNUNET_CADET_Channel *handle
@@ -41,5 +47,24 @@ private:
     asio::io_service& _ios;
     std::shared_ptr<Impl> _impl;
 };
+
+//--------------------------------------------------------------------
+template<class Token>
+typename asio::async_result
+    < typename asio::handler_type<Token, void(sys::error_code, Channel)>::type
+    >::type
+CadetPort::open(const std::string& shared_secret, Token&& token)
+{
+    using Handler = typename asio::handler_type< Token
+                                               , void(sys::error_code, Channel)
+                                               >::type;
+
+    Handler handler(std::forward<Token>(token));
+    asio::async_result<Handler> result(handler);
+
+    open_impl(shared_secret, std::move(handler));
+
+    return result.get();
+}
 
 } // gnunet_channels namespace

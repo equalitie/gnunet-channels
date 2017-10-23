@@ -71,7 +71,7 @@ void* CadetPort::channel_incoming( void *cls
     return ch.get();
 }
 
-void CadetPort::open(const string& shared_secret, OnAccept on_accept)
+void CadetPort::open_impl(const string& shared_secret, OnAccept on_accept)
 {
     GNUNET_HashCode port_hash;
     GNUNET_CRYPTO_hash(shared_secret.c_str(), shared_secret.size(), &port_hash);
