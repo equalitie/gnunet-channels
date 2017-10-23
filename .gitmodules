@@ -1,0 +1,3 @@
+[submodule "gnunet"]
+	path = gnunet
+	url = https://github.com/equalitie/gnunet
