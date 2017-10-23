@@ -13,6 +13,7 @@ struct CadetPort::Impl : public enable_shared_from_this<Impl> {
     shared_ptr<Cadet> cadet;
     GNUNET_CADET_Port *port = nullptr;
     OnAccept on_accept;
+    Channel* channel = nullptr;
     bool was_destroyed = false;
 
     Impl(shared_ptr<Cadet> cadet)
@@ -25,7 +26,7 @@ struct CadetPort::Impl : public enable_shared_from_this<Impl> {
     auto accept_fail(sys::error_code ec) {
         get_io_service().post([ ec
                               , c = cadet
-                              , f = move(on_accept)] { f(ec, Channel(c)); });
+                              , f = move(on_accept)] { f(ec); });
     };
 };
 
@@ -50,28 +51,25 @@ void* CadetPort::channel_incoming( void *cls
 {
     auto impl = static_cast<Impl*>(cls);
 
-    auto ch = make_shared<ChannelImpl>(impl->cadet);
+    impl->channel->set_handle(handle);
 
-    ch->_channel = handle;
-
-    impl->get_io_service().post([ch, impl = impl->shared_from_this()] {
+    impl->get_io_service().post([impl = impl->shared_from_this()] {
             if (!impl->on_accept) {
-                return ch->close();
+                return;
             }
 
             if (impl->was_destroyed) {
-                ch->close();
                 return impl->accept_fail(asio::error::operation_aborted);
             }
 
             auto f = move(impl->on_accept);
-            f(sys::error_code(), move(ch));
+            f(sys::error_code());
         });
 
-    return ch.get();
+    return impl->channel->get_impl();
 }
 
-void CadetPort::open_impl(const string& shared_secret, OnAccept on_accept)
+void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_accept)
 {
     GNUNET_HashCode port_hash;
     GNUNET_CRYPTO_hash(shared_secret.c_str(), shared_secret.size(), &port_hash);
@@ -80,6 +78,7 @@ void CadetPort::open_impl(const string& shared_secret, OnAccept on_accept)
         _impl->accept_fail(asio::error::operation_aborted);
     }
 
+    _impl->channel = &ch;
     _impl->on_accept = move(on_accept);
 
     scheduler().post([impl = _impl, port_hash] {

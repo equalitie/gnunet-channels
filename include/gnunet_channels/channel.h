@@ -4,12 +4,15 @@
 #include <boost/asio/io_service.hpp>
 #include <gnunet_channels/namespaces.h>
 
+struct GNUNET_CADET_Channel;
+
 namespace gnunet_channels {
 
 class Cadet;
 class ChannelImpl;
 class Scheduler;
 class Service;
+class CadetPort;
 
 class Channel {
 public:
@@ -48,11 +51,16 @@ public:
     ~Channel();
 
 private:
+    friend class ::gnunet_channels::CadetPort;
+
     void connect_impl( std::string target_id
                      , const std::string& shared_secret
                      , OnConnect);
 
     void receive_impl(OnReceive);
+
+    void set_handle(GNUNET_CADET_Channel*);
+    ChannelImpl* get_impl() { return _impl.get(); }
 
 private:
     Scheduler& _scheduler;

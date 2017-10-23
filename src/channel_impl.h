@@ -3,6 +3,7 @@
 #include <gnunet/platform.h>
 #include "cadet.h"
 #include <gnunet_channels/namespaces.h>
+#include <gnunet_channels/channel.h>
 
 namespace gnunet_channels {
 
@@ -29,6 +30,7 @@ public:
 
 private:
     friend class CadetPort;
+    friend class ::gnunet_channels::Channel;
 
     static void  handle_data(void *cls, const GNUNET_MessageHeader*);
     static int   check_data(void *cls, const GNUNET_MessageHeader*);

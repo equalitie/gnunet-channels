@@ -46,6 +46,11 @@ void Channel::receive_impl(OnReceive h)
     _impl->receive(move(h));
 }
 
+void Channel::set_handle(GNUNET_CADET_Channel* h)
+{
+    _impl->_channel = h;
+}
+
 Channel::~Channel()
 {
     // Could have been moved from.

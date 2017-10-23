@@ -11,7 +11,7 @@ class CadetPort {
     struct Impl;
 
 public:
-    using OnAccept = std::function<void(sys::error_code, Channel)>;
+    using OnAccept = std::function<void(sys::error_code)>;
 
 public:
     CadetPort(Service&);
@@ -22,9 +22,9 @@ public:
 
     template<class Token>
     typename asio::async_result
-        < typename asio::handler_type<Token, void(sys::error_code, Channel)>::type
+        < typename asio::handler_type<Token, void(sys::error_code)>::type
         >::type
-    open(const std::string& shared_secret, Token&&);
+    open(Channel&, const std::string& shared_secret, Token&&);
 
     Scheduler& scheduler();
     asio::io_service& get_io_service() { return _ios; }
@@ -32,7 +32,7 @@ public:
     ~CadetPort();
 
 private:
-    void open_impl(const std::string& shared_secret, OnAccept);
+    void open_impl(Channel&, const std::string& shared_secret, OnAccept);
 
     static
     void* channel_incoming( void *cls
@@ -51,18 +51,18 @@ private:
 //--------------------------------------------------------------------
 template<class Token>
 typename asio::async_result
-    < typename asio::handler_type<Token, void(sys::error_code, Channel)>::type
+    < typename asio::handler_type<Token, void(sys::error_code)>::type
     >::type
-CadetPort::open(const std::string& shared_secret, Token&& token)
+CadetPort::open(Channel& ch, const std::string& shared_secret, Token&& token)
 {
     using Handler = typename asio::handler_type< Token
-                                               , void(sys::error_code, Channel)
+                                               , void(sys::error_code)
                                                >::type;
 
     Handler handler(std::forward<Token>(token));
     asio::async_result<Handler> result(handler);
 
-    open_impl(shared_secret, std::move(handler));
+    open_impl(ch, shared_secret, std::move(handler));
 
     return result.get();
 }

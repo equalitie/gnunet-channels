@@ -95,29 +95,48 @@ int main(int argc, char* const* argv)
             chat.reset();
         });
 
-    service.async_setup([&target_id, &service, port] (sys::error_code ec) {
-             chat = make_shared<Chat>(service.get_io_service());
+    asio::spawn(ios, [&] (auto yield) {
+            sys::error_code ec;
 
-             if (!target_id.empty()) {
-                 cout << "Connecting to " << target_id << endl;
+            service.async_setup(yield[ec]);
 
-                 chat->channel = make_unique<Channel>(service);
-                 chat->channel->connect(target_id, port,
-                         [](sys::error_code e) {
-                             cout << "Connect " << e.message() << endl;
-                             chat->start();
-                         });
-             }
-             else {
-                 cout << "Accepting on port \"" << port << "\"" << endl;
+            if (ec) {
+                cerr << "Failed to set up gnunet service: " << ec.message() << endl;
+                return;
+            }
 
-                 chat->port = make_unique<CadetPort>(service);
-                 chat->port->open(port, [] (sys::error_code, auto ch) {
-                         cout << "Accepted channel" << endl;
-                         chat->channel = make_unique<Channel>(move(ch));
-                         chat->start();
-                     });
-             }
+            chat = make_shared<Chat>(service.get_io_service());
+
+            if (!target_id.empty()) {
+                cout << "Connecting to " << target_id << endl;
+
+                chat->channel = make_unique<Channel>(service);
+                chat->channel->connect(target_id, port, yield[ec]);
+
+                if (ec) {
+                    cerr << "Failed to connect: " << ec.message() << endl;
+                    return;
+                }
+
+                cout << "Connected" << endl;
+            }
+            else {
+                cout << "Accepting on port \"" << port << "\"" << endl;
+
+                chat->channel = make_unique<Channel>(service);
+                chat->port    = make_unique<CadetPort>(service);
+
+                chat->port->open(*chat->channel, port, yield[ec]);
+
+                if (ec) {
+                    cerr << "Failed to accept: " << ec.message() << endl;
+                    return;
+                }
+
+                cout << "Accepted" << endl;
+            }
+
+            chat->start();
         });
     
     ios.run();
