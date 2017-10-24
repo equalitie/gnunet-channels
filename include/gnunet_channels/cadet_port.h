@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gnunet/platform.h>
+#include <gnunet/gnunet_cadet_service.h>
 #include <gnunet_channels/channel.h>
 
 namespace gnunet_channels {
