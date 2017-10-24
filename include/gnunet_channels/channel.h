@@ -20,6 +20,7 @@ class Channel {
 public:
     using OnConnect = std::function<void(sys::error_code)>;
     using OnReceive = std::function<void(sys::error_code, size_t)>;
+    using OnSend    = std::function<void(sys::error_code, size_t)>;
 
 public:
     Channel(Service&);
@@ -42,7 +43,7 @@ public:
            , const std::string& shared_secret
            , Token&&);
 
-    void send(const std::string&);
+    void send(const std::string&, OnSend);
 
     template< class MutableBufferSequence
             , class ReadHandler>

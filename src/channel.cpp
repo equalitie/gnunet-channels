@@ -36,9 +36,9 @@ void Channel::connect_impl( std::string target_id
     _impl->connect(move(target_id), shared_secret, move(h));
 }
 
-void Channel::send(const std::string& data)
+void Channel::send(const std::string& data, OnSend on_send)
 {
-    _impl->send(data);
+    _impl->send(data, move(on_send));
 }
 
 void Channel::receive_impl(vector<asio::mutable_buffer> bufs, OnReceive h)

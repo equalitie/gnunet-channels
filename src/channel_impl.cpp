@@ -18,25 +18,65 @@ ChannelImpl::ChannelImpl(shared_ptr<Cadet> cadet)
 {
 }
 
-void ChannelImpl::send(const std::string& data)
+void ChannelImpl::send(const std::string& data, OnSend on_send)
 {
-    scheduler().post([s = shared_from_this(), data] () mutable {
+    if (_on_send) {
+        // We're already sending, so queue this request.
+        _send_queue.push(SendEntry{data, move(on_send)});
+        return;
+    }
+
+    do_send(data, move(on_send));
+}
+
+void ChannelImpl::do_send(std::string data, OnSend on_send)
+{
+    size_t size = data.size();
+    _on_send = [h = move(on_send), size] (auto ec) { h(ec, size); };
+
+    scheduler().post([ s = shared_from_this()
+                     , d = move(data)
+                     ] () mutable {
         if (!s->_channel) return;
 
         GNUNET_MessageHeader *msg;
-
-        // TODO: Is GNUNET_MESSAGE_TYPE_CADET_CLI the type we want to use?
         GNUNET_MQ_Envelope *env
             = GNUNET_MQ_msg_extra( msg
-                                 , data.size()
+                                 , d.size()
                                  , GNUNET_MESSAGE_TYPE_CADET_CLI);
 
-        GNUNET_memcpy(&msg[1], data.c_str(), data.size());
-
+        GNUNET_memcpy(&msg[1], d.c_str(), d.size());
+        GNUNET_MQ_notify_sent(env, ChannelImpl::data_sent, s.get());
         GNUNET_MQ_send(GNUNET_CADET_get_mq(s->_channel), env);
 
         preserve(move(s));
     });
+}
+
+// Executed in GNUnet's thread
+void ChannelImpl::data_sent(void *cls)
+{
+    auto self = static_cast<ChannelImpl*>(cls);
+
+    self->get_io_service().post([s = self->shared_from_this()] {
+            auto f = move(s->_on_send);
+
+            if (!f) {
+                // This can happen only if `close` was called.
+                assert(!s->_cadet);
+                return;
+            }
+
+            // NOTE: We need to do this before we execute the callback to match
+            // the order of sent packets.
+            if (!s->_send_queue.empty()) {
+                auto e = move(s->_send_queue.front());
+                s->_send_queue.pop();
+                s->do_send(move(e.data), move(e.on_send));
+            }
+
+            f(sys::error_code());
+        });
 }
 
 void ChannelImpl::receive(vector<asio::mutable_buffer> output, OnReceive h)
@@ -104,7 +144,7 @@ void ChannelImpl::connect( string target_id
 {
     GNUNET_HashCode port_hash;
     GNUNET_CRYPTO_hash(port.c_str(), port.size(), &port_hash);
-    
+
     _on_connect = move(h);
 
     _scheduler.post([ cadet     = _cadet
@@ -191,6 +231,22 @@ asio::io_service& ChannelImpl::get_io_service()
 void ChannelImpl::close()
 {
     if (!_cadet) return; // Already closed.
+
+    auto& ios = get_io_service();
+
+    if (_on_send) {
+        ios.post(bind(move(_on_send), asio::error::operation_aborted));
+    }
+
+    if (_on_receive) {
+        ios.post(bind(move(_on_receive), asio::error::operation_aborted, 0));
+    }
+
+    while (!_send_queue.empty()) {
+        auto e = _send_queue.front();
+        _send_queue.pop();
+        ios.post(bind(move(e.on_send), asio::error::operation_aborted, 0));
+    }
 
     _scheduler.post([ s = shared_from_this()
                     , c = move(_cadet)

@@ -56,7 +56,7 @@ static void run_chat(unique_ptr<Channel>& c, asio::yield_context yield) {
         sys::error_code ec;
         size_t n = asio::async_read_until(input, buffer, '\n', yield[ec]);
         if (ec || !c) break;
-        c->send(consume(buffer, n));
+        c->send(consume(buffer, n), [](auto, auto) {});
     }
 }
 

@@ -11,7 +11,9 @@ class ChannelImpl : public std::enable_shared_from_this<ChannelImpl> {
 public:
     using OnConnect = std::function<void(sys::error_code)>;
     using OnReceive = std::function<void(sys::error_code, size_t)>;
+    using OnSend    = std::function<void(sys::error_code, size_t)>;
 
+private:
     struct Buffer {
         std::vector<uint8_t> data;
         asio::const_buffer   info;
@@ -24,6 +26,11 @@ public:
         }
     };
 
+    struct SendEntry {
+        std::string data;
+        OnSend on_send;
+    };
+
 public:
     ChannelImpl(std::shared_ptr<Cadet>);
 
@@ -34,7 +41,7 @@ public:
                 , const std::string& shared_secret
                 , OnConnect);
 
-    void send(const std::string&);
+    void send(const std::string&, OnSend);
     void receive(std::vector<asio::mutable_buffer>, OnReceive);
     void close();
 
@@ -49,10 +56,13 @@ private:
     static void  connect_channel_ended(void *cls, const GNUNET_CADET_Channel*);
     static void  connect_window_change(void *cls, const GNUNET_CADET_Channel*, int);
     static void* channel_incoming(void *, GNUNET_CADET_Channel*, const GNUNET_PeerIdentity*);
+    static void  data_sent(void *cls);
 
+    void do_send(std::string, OnSend);
 private:
     OnConnect _on_connect;
     OnReceive _on_receive;
+    std::function<void(sys::error_code)> _on_send;
 
     // What is inside this structure can only be accessed
     // from the GNUnet thread.
@@ -64,6 +74,7 @@ private:
     Scheduler& _scheduler;
 
     std::queue<Buffer> _recv_queue;
+    std::queue<SendEntry> _send_queue;
     std::vector<asio::mutable_buffer> _output;
 };
 
