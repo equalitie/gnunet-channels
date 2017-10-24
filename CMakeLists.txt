@@ -34,13 +34,30 @@ include_directories(
     "${GNUNET_BIN_DIR}/include")
 
 file(GLOB sources
-    "${CMAKE_SOURCE_DIR}/example/*.cpp"
     "${CMAKE_SOURCE_DIR}/src/*.cpp")
 
-add_executable(gnunet-channels ${sources})
+add_library(gnunet-channels ${sources})
 add_dependencies(gnunet-channels gnunet)
 
-target_link_libraries(gnunet-channels
+################################################################################
+project(chat)
+
+find_package(Boost ${BOOST_VERSION} COMPONENTS thread system coroutine REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -ggdb ${SANITIZE}")
+
+include_directories(
+    "${Boost_INCLUDE_DIR}"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${GNUNET_BIN_DIR}/include")
+
+file(GLOB sources
+    "${CMAKE_SOURCE_DIR}/example/chat.cpp")
+
+add_executable(chat ${sources})
+add_dependencies(chat gnunet-channels)
+
+target_link_libraries(chat
+    ${CMAKE_BINARY_DIR}/libgnunet-channels.a
     ${GNUNET_BIN_DIR}/lib/libgnunethello.so
     ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
     ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
