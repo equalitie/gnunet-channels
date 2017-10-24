@@ -12,11 +12,6 @@
 using namespace std;
 using namespace gnunet_channels;
 
-struct Chat {
-    unique_ptr<Channel> channel;
-    unique_ptr<CadetPort> port;
-};
-
 static string remove_new_line(string s)
 {
     while (!s.empty() && *(--s.end()) == '\n') {
@@ -32,8 +27,8 @@ static string consume(asio::streambuf& buf, size_t n)
     return out;
 }
 
-static void run_chat(Chat& c, asio::yield_context yield) {
-    auto& ios = c.channel->get_io_service();
+static void run_chat(unique_ptr<Channel>& c, asio::yield_context yield) {
+    auto& ios = c->get_io_service();
 
     // Start printing received messages
     asio::spawn(ios, [&c] (asio::yield_context yield) {
@@ -41,9 +36,9 @@ static void run_chat(Chat& c, asio::yield_context yield) {
             asio::streambuf buffer(512);
 
             while (true) {
-                size_t n = asio::async_read_until(*c.channel, buffer, '\n', yield[ec]);
+                size_t n = asio::async_read_until(*c, buffer, '\n', yield[ec]);
 
-                if (ec || !c.channel) return;
+                if (ec || !c) return;
 
                 cout << "Received: "
                      << remove_new_line(consume(buffer, n))
@@ -60,22 +55,22 @@ static void run_chat(Chat& c, asio::yield_context yield) {
     while (true) {
         sys::error_code ec;
         size_t n = asio::async_read_until(input, buffer, '\n', yield[ec]);
-        if (ec || !c.channel) break;
-        c.channel->send(consume(buffer, n));
+        if (ec || !c) break;
+        c->send(consume(buffer, n));
     }
 }
 
-static void connect_and_run_chat( Chat& chat
+static void connect_and_run_chat( unique_ptr<Channel>& channel
                                 , Service& service
                                 , string target_id
                                 , string port
                                 , asio::yield_context yield)
 {
     sys::error_code ec;
-    chat.channel = make_unique<Channel>(service);
+    channel = make_unique<Channel>(service);
 
     cout << "Connecting to " << target_id << endl;
-    chat.channel->connect(target_id, port, yield[ec]);
+    channel->connect(target_id, port, yield[ec]);
 
     if (ec) {
         cerr << "Failed to connect: " << ec.message() << endl;
@@ -84,10 +79,10 @@ static void connect_and_run_chat( Chat& chat
 
     cout << "Connected" << endl;
 
-    run_chat(chat, yield);
+    run_chat(channel, yield);
 }
 
-static void accept_and_run_chat( Chat& chat
+static void accept_and_run_chat( unique_ptr<Channel>& channel
                                , Service& service
                                , string port
                                , asio::yield_context yield)
@@ -96,10 +91,12 @@ static void accept_and_run_chat( Chat& chat
 
     cout << "Accepting on port \"" << port << "\"" << endl;
 
-    chat.channel = make_unique<Channel>(service);
-    chat.port    = make_unique<CadetPort>(service);
+    channel = make_unique<Channel>(service);
 
-    chat.port->open(*chat.channel, port, yield[ec]);
+    {
+        CadetPort p(service);
+        p.open(*channel, port, yield[ec]);
+    }
 
     if (ec) {
         cerr << "Failed to accept: " << ec.message() << endl;
@@ -108,7 +105,7 @@ static void accept_and_run_chat( Chat& chat
 
     cout << "Accepted" << endl;
 
-    run_chat(chat, yield);
+    run_chat(channel, yield);
 }
 
 static void print_usage(const char* app_name)
@@ -140,11 +137,10 @@ int main(int argc, char* const* argv)
     // Capture these signals so that we can disconnect gracefully.
     asio::signal_set signals(ios, SIGINT, SIGTERM);
 
-    Chat chat;
+    unique_ptr<Channel> channel;
 
     signals.async_wait([&](sys::error_code, int /* signal_number */) {
-            chat.channel.reset();
-            chat.port.reset();
+            channel.reset();
         });
 
     asio::spawn(ios, [&] (auto yield) {
@@ -158,10 +154,10 @@ int main(int argc, char* const* argv)
             }
 
             if (!target_id.empty()) {
-                connect_and_run_chat(chat, service, target_id, port, yield);
+                connect_and_run_chat(channel, service, target_id, port, yield);
             }
             else {
-                accept_and_run_chat(chat, service, port, yield);
+                accept_and_run_chat(channel, service, port, yield);
             }
         });
 
