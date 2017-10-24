@@ -68,7 +68,6 @@ static void connect_and_run_chat( unique_ptr<Channel>& channel
                                 , asio::yield_context yield)
 {
     sys::error_code ec;
-    channel = make_unique<Channel>(service);
 
     cout << "Connecting to " << target_id << endl;
     channel->connect(target_id, port, yield[ec]);
@@ -92,16 +91,14 @@ static void accept_and_run_chat( unique_ptr<Channel>& channel
 
     cout << "Accepting on port \"" << port << "\"" << endl;
 
-    channel = make_unique<Channel>(service);
-
     {
         CadetPort p(service);
         p.open(*channel, port, yield[ec]);
-    }
 
-    if (ec) {
-        cerr << "Failed to accept: " << ec.message() << endl;
-        return;
+        if (ec) {
+            cerr << "Failed to accept: " << ec.message() << endl;
+            return;
+        }
     }
 
     cout << "Accepted" << endl;
@@ -153,6 +150,8 @@ int main(int argc, char* const* argv)
                 cerr << "Failed to set up gnunet service: " << ec.message() << endl;
                 return;
             }
+
+            channel = make_unique<Channel>(service);
 
             if (!target_id.empty()) {
                 connect_and_run_chat(channel, service, target_id, port, yield);
