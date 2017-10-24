@@ -113,7 +113,11 @@ CadetPort::~CadetPort()
 {
     _impl->was_destroyed = true;
 
-    scheduler().post([impl = move(_impl)] {
+    // Need to get the scheduler here because the function internally uses
+    // _impl which is moved from in the next step.
+    auto& s = scheduler();
+
+    s.post([impl = move(_impl)] {
         GNUNET_CADET_close_port(impl->port);
         impl->port = nullptr;
     });
