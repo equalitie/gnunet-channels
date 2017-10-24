@@ -27,7 +27,7 @@ private:
     };
 
     struct SendEntry {
-        std::string data;
+        std::vector<uint8_t> data;
         OnSend on_send;
     };
 
@@ -41,7 +41,7 @@ public:
                 , const std::string& shared_secret
                 , OnConnect);
 
-    void send(const std::string&, OnSend);
+    void send(std::vector<uint8_t>, OnSend);
     void receive(std::vector<asio::mutable_buffer>, OnReceive);
     void close();
 
@@ -58,7 +58,7 @@ private:
     static void* channel_incoming(void *, GNUNET_CADET_Channel*, const GNUNET_PeerIdentity*);
     static void  data_sent(void *cls);
 
-    void do_send(std::string, OnSend);
+    void do_send(std::vector<uint8_t>, OnSend);
 private:
     OnConnect _on_connect;
     OnReceive _on_receive;

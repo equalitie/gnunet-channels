@@ -18,7 +18,7 @@ ChannelImpl::ChannelImpl(shared_ptr<Cadet> cadet)
 {
 }
 
-void ChannelImpl::send(const std::string& data, OnSend on_send)
+void ChannelImpl::send(vector<uint8_t> data, OnSend on_send)
 {
     if (_on_send) {
         // We're already sending, so queue this request.
@@ -29,27 +29,27 @@ void ChannelImpl::send(const std::string& data, OnSend on_send)
     do_send(data, move(on_send));
 }
 
-void ChannelImpl::do_send(std::string data, OnSend on_send)
+void ChannelImpl::do_send(vector<uint8_t> data, OnSend on_send)
 {
     size_t size = data.size();
     _on_send = [h = move(on_send), size] (auto ec) { h(ec, size); };
 
-    scheduler().post([ s = shared_from_this()
-                     , d = move(data)
+    scheduler().post([ self = shared_from_this()
+                     , data = move(data)
                      ] () mutable {
-        if (!s->_channel) return;
+        if (!self->_channel) return;
 
         GNUNET_MessageHeader *msg;
         GNUNET_MQ_Envelope *env
             = GNUNET_MQ_msg_extra( msg
-                                 , d.size()
+                                 , data.size()
                                  , GNUNET_MESSAGE_TYPE_CADET_CLI);
 
-        GNUNET_memcpy(&msg[1], d.c_str(), d.size());
-        GNUNET_MQ_notify_sent(env, ChannelImpl::data_sent, s.get());
-        GNUNET_MQ_send(GNUNET_CADET_get_mq(s->_channel), env);
+        GNUNET_memcpy(&msg[1], &data[0], data.size());
+        GNUNET_MQ_notify_sent(env, ChannelImpl::data_sent, self.get());
+        GNUNET_MQ_send(GNUNET_CADET_get_mq(self->_channel), env);
 
-        preserve(move(s));
+        preserve(move(self));
     });
 }
 

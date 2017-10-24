@@ -4,6 +4,7 @@
 #include <boost/asio/streambuf.hpp>
 #include <boost/asio/posix/stream_descriptor.hpp>
 #include <boost/asio/read_until.hpp>
+#include <boost/asio/write.hpp>
 
 #include <gnunet_channels/service.h>
 #include <gnunet_channels/channel.h>
@@ -49,14 +50,14 @@ static void run_chat(unique_ptr<Channel>& c, asio::yield_context yield) {
     // Read from input and send it to peer
     asio::posix::stream_descriptor input(ios, ::dup(STDIN_FILENO));
 
-    string out;
     asio::streambuf buffer(512);
 
     while (true) {
         sys::error_code ec;
         size_t n = asio::async_read_until(input, buffer, '\n', yield[ec]);
         if (ec || !c) break;
-        c->send(consume(buffer, n), [](auto, auto) {});
+        asio::async_write(*c, asio::buffer(consume(buffer, n)), yield[ec]);
+        if (ec || !c) break;
     }
 }
 
