@@ -64,9 +64,6 @@ private:
     OnReceive _on_receive;
     std::function<void(sys::error_code)> _on_send;
 
-    // What is inside this structure can only be accessed
-    // from the GNUnet thread.
-
     // This one is mutable and can only be modified (and read) inside the
     // GNUnet's thread.
     GNUNET_CADET_Channel* _channel = nullptr;
