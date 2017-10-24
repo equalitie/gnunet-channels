@@ -2,6 +2,8 @@
 
 #include <memory>
 #include <boost/asio/io_service.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/buffers_iterator.hpp>
 #include <gnunet_channels/namespaces.h>
 
 struct GNUNET_CADET_Channel;
@@ -17,7 +19,7 @@ class CadetPort;
 class Channel {
 public:
     using OnConnect = std::function<void(sys::error_code)>;
-    using OnReceive = std::function<void(sys::error_code, std::string)>;
+    using OnReceive = std::function<void(sys::error_code, size_t)>;
 
 public:
     Channel(Service&);
@@ -42,11 +44,9 @@ public:
 
     void send(const std::string&);
 
-    template<class Token>
-    typename asio::async_result
-        < typename asio::handler_type<Token, void(sys::error_code, std::string)>::type
-        >::type
-    receive(Token&& token);
+    template< class MutableBufferSequence
+            , class ReadHandler>
+    void async_read_some(const MutableBufferSequence&, ReadHandler&&);
 
     ~Channel();
 
@@ -57,7 +57,7 @@ private:
                      , const std::string& shared_secret
                      , OnConnect);
 
-    void receive_impl(OnReceive);
+    void receive_impl(std::vector<asio::mutable_buffer>, OnReceive);
 
     void set_handle(GNUNET_CADET_Channel*);
     ChannelImpl* get_impl() { return _impl.get(); }
@@ -89,22 +89,25 @@ Channel::connect( std::string target_id
     return result.get();
 }
 
-template<class Token>
-typename asio::async_result
-    < typename asio::handler_type<Token, void(sys::error_code, std::string)>::type
-    >::type
-Channel::receive(Token&& token)
+template<class T> class Debug;
+
+template< class MutableBufferSequence
+        , class ReadHandler>
+void Channel::async_read_some( const MutableBufferSequence& bufs
+                             , ReadHandler&& h)
 {
-    using Handler = typename asio::handler_type< Token
-                                               , void(sys::error_code, std::string)
-                                               >::type;
+    using namespace std;
 
-    Handler handler(std::forward<Token>(token));
-    asio::async_result<Handler> result(handler);
+    // TODO: Small Object Optimization: I presume most of the times the size of
+    // bufs is going to be rather small. So to avoid allocation of memory
+    // inside std::vector we could instead store it in std::array. I.e. we
+    // could store it in e.g. variant<vector, array> depending on the size.
+    // TODO: Also, can we use std::size instead of std::distance?
+    vector<asio::mutable_buffer> bs(distance(bufs.begin(), bufs.end()));
 
-    receive_impl(std::move(handler));
+    copy(bufs.begin(), bufs.end(), bs.begin());
 
-    return result.get();
+    receive_impl(move(bs), forward<ReadHandler>(h));
 }
 
 } // gnunet_channels namespace

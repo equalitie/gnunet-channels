@@ -39,20 +39,63 @@ void ChannelImpl::send(const std::string& data)
     });
 }
 
-void ChannelImpl::receive(OnReceive h)
+void ChannelImpl::receive(vector<asio::mutable_buffer> output, OnReceive h)
 {
     if (_recv_queue.empty()) {
         _on_receive = move(h);
+        _output = move(output);
     }
     else {
-        auto data = move(_recv_queue.front());
-        _recv_queue.pop();
-        get_io_service().post([ s = shared_from_this()
-                              , d = move(data)
-                              , h = move(h) ] {
-                                  h(sys::error_code(), move(d));
+        auto& input = _recv_queue.front();
+
+        size_t size = asio::buffer_copy(output, input.info);
+
+        input.info = input.info + size;
+
+        if (asio::buffer_size(input.info) == 0) {
+            _recv_queue.pop();
+        }
+
+        get_io_service().post([ size
+                              , self = shared_from_this()
+                              , h    = move(h) ] {
+                                  // TODO: Check whether `close` was called?
+                                  h(sys::error_code(), size);
                               });
     }
+}
+
+// Executed in GNUnet's thread
+void ChannelImpl::handle_data(void *cls, const GNUNET_MessageHeader *m)
+{
+    auto ch = static_cast<ChannelImpl*>(cls);
+
+    size_t payload_size = ntohs(m->size) - sizeof(*m);
+    uint8_t* begin = (uint8_t*) &m[1];
+    std::vector<uint8_t> payload(begin, begin + payload_size);
+
+    // TODO: Would be nice to only call this when the _recv_queue is empty.
+    // But that requires some locking.
+    GNUNET_CADET_receive_done(ch->_channel);
+
+    ch->get_io_service().post([ s = ch->shared_from_this()
+                              , d = move(payload) ] {
+            // TODO: Check whether `close` was called?
+
+            if (s->_on_receive) {
+                size_t size = asio::buffer_copy(s->_output, asio::buffer(d));
+
+                if (size < d.size()) {
+                    s->_recv_queue.emplace(move(d), size);
+                }
+
+                auto f = move(s->_on_receive);
+                f(sys::error_code(), size);
+            }
+            else {
+                s->_recv_queue.emplace(move(d));
+            }
+        });
 }
 
 void ChannelImpl::connect( string target_id
@@ -105,31 +148,6 @@ void ChannelImpl::connect( string target_id
                                          , handlers);
         preserve(move(self));
     });
-}
-
-// Executed in GNUnet's thread
-void ChannelImpl::handle_data(void *cls, const GNUNET_MessageHeader *m)
-{
-    auto ch = static_cast<ChannelImpl*>(cls);
-
-    size_t payload_size = ntohs(m->size) - sizeof(*m);
-    char* begin = (char*) &m[1];
-    string payload(begin, begin + payload_size);
-
-    // TODO: Would be nice to only call this when the _recv_queue is empty.
-    // But that requires some locking.
-    GNUNET_CADET_receive_done(ch->_channel);
-
-    ch->get_io_service().post([ s = ch->shared_from_this()
-                              , d = move(payload) ] {
-            if (s->_on_receive) {
-                auto f = move(s->_on_receive);
-                f(sys::error_code(), move(d));
-            }
-            else {
-                s->_recv_queue.push(move(d));
-            }
-        });
 }
 
 // Executed in GNUnet's thread

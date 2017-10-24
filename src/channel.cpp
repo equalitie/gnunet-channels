@@ -41,9 +41,9 @@ void Channel::send(const std::string& data)
     _impl->send(data);
 }
 
-void Channel::receive_impl(OnReceive h)
+void Channel::receive_impl(vector<asio::mutable_buffer> bufs, OnReceive h)
 {
-    _impl->receive(move(h));
+    _impl->receive(move(bufs), move(h));
 }
 
 void Channel::set_handle(GNUNET_CADET_Channel* h)

@@ -17,17 +17,37 @@ struct Chat {
     unique_ptr<CadetPort> port;
 };
 
+static string remove_new_line(string s)
+{
+    while (!s.empty() && *(--s.end()) == '\n') {
+        s.resize(s.size() - 1);
+    }
+    return s;
+}
+
+static string consume(asio::streambuf& buf, size_t n)
+{
+    string out(n, '\0');
+    buf.sgetn((char*) out.c_str(), n);
+    return out;
+}
+
 static void run_chat(Chat& c, asio::yield_context yield) {
     auto& ios = c.channel->get_io_service();
 
     // Start printing received messages
     asio::spawn(ios, [&c] (asio::yield_context yield) {
             sys::error_code ec;
+            asio::streambuf buffer(512);
 
             while (true) {
-                string data = c.channel->receive(yield[ec]);
-                if (ec) return;
-                cout << "Received: " << data << endl;
+                size_t n = asio::async_read_until(*c.channel, buffer, '\n', yield[ec]);
+
+                if (ec || !c.channel) return;
+
+                cout << "Received: "
+                     << remove_new_line(consume(buffer, n))
+                     << endl;
             }
         });
 
@@ -41,10 +61,7 @@ static void run_chat(Chat& c, asio::yield_context yield) {
         sys::error_code ec;
         size_t n = asio::async_read_until(input, buffer, '\n', yield[ec]);
         if (ec || !c.channel) break;
-        out.resize(n - 1);
-        buffer.sgetn((char*) out.c_str(), n - 1);
-        buffer.consume(1); // new line
-        c.channel->send(out);
+        c.channel->send(consume(buffer, n));
     }
 }
 

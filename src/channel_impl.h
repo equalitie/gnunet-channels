@@ -10,7 +10,19 @@ namespace gnunet_channels {
 class ChannelImpl : public std::enable_shared_from_this<ChannelImpl> {
 public:
     using OnConnect = std::function<void(sys::error_code)>;
-    using OnReceive = std::function<void(sys::error_code, std::string)>;
+    using OnReceive = std::function<void(sys::error_code, size_t)>;
+
+    struct Buffer {
+        std::vector<uint8_t> data;
+        asio::const_buffer   info;
+
+        Buffer(std::vector<uint8_t> data, size_t start = 0)
+            : data(std::move(data))
+            , info(this->data.data(), this->data.size())
+        {
+            info = info + start;
+        }
+    };
 
 public:
     ChannelImpl(std::shared_ptr<Cadet>);
@@ -23,7 +35,7 @@ public:
                 , OnConnect);
 
     void send(const std::string&);
-    void receive(OnReceive);
+    void receive(std::vector<asio::mutable_buffer>, OnReceive);
     void close();
 
     ~ChannelImpl();
@@ -51,7 +63,8 @@ private:
     std::shared_ptr<Cadet> _cadet;
     Scheduler& _scheduler;
 
-    std::queue<std::string> _recv_queue;
+    std::queue<Buffer> _recv_queue;
+    std::vector<asio::mutable_buffer> _output;
 };
 
 } // gnunet_channels namespace
