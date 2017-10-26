@@ -64,7 +64,7 @@ void Scheduler::scheduler_run(void *cls)
 void Scheduler::wait_for_job()
 {
     struct Inner {
-        static void flush_pipe(int fd) {
+        static void drain_pipe(int fd) {
             char buffer[256];
             for (;;) {
                 ssize_t s = read(fd, buffer, sizeof(buffer));
@@ -79,7 +79,7 @@ void Scheduler::wait_for_job()
         static void call(void *cls)
         {
             auto self = static_cast<Scheduler*>(cls);
-            flush_pipe(self->_pipes[0]);
+            drain_pipe(self->_pipes[0]);
 
             while(true) {
                 queue<Handler> handlers;
