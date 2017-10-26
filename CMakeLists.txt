@@ -16,8 +16,8 @@ externalproject_add(gnunet
     DOWNLOAD_COMMAND ""
     BUILD_ALWAYS ${BUILD_GNUNET}
     CONFIGURE_COMMAND cd ${GNUNET_SRC_DIR}
-                   && ./bootstrap
-                   && ./configure --prefix=${CMAKE_BINARY_DIR}/gnunet
+                   && sh -c "[ -f ./configure ] || ./bootstrap"
+                   && sh -c "[ -f Makefile ] || ./configure --prefix=${CMAKE_BINARY_DIR}/gnunet"
     BUILD_COMMAND $(MAKE) -C ${GNUNET_SRC_DIR}
     INSTALL_COMMAND $(MAKE) install -C ${GNUNET_SRC_DIR}
     PREFIX gnunet-build)
