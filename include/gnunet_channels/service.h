@@ -12,16 +12,13 @@ class Service {
     using OnSetup = std::function<void(sys::error_code)>;
 
 public:
-    Service(std::string config_path, asio::io_service& ios);
+    Service(std::string config_path, asio::io_service&);
 
     Service(const Service&) = delete;
     Service& operator=(const Service&) = delete;
 
     template<class Token>
-    typename asio::async_result
-        < typename asio::handler_type<Token, void(sys::error_code)>::type
-        >::type
-    async_setup(Token&& token);
+    void async_setup(Token&& token);
 
     asio::io_service& get_io_service();
 
@@ -39,10 +36,7 @@ private:
 
 //--------------------------------------------------------------------
 template<class Token>
-typename asio::async_result
-    < typename asio::handler_type<Token, void(sys::error_code)>::type
-    >::type
-Service::async_setup(Token&& token)
+void Service::async_setup(Token&& token)
 {
     using Handler = typename asio::handler_type< Token
                                                , void(sys::error_code)
@@ -50,10 +44,8 @@ Service::async_setup(Token&& token)
 
     Handler handler(std::forward<Token>(token));
     asio::async_result<Handler> result(handler);
-
     async_setup_impl(std::move(handler));
-
-    return result.get();
+    result.get();
 }
 
 } // gnunet_channels namespace
