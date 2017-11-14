@@ -1,8 +1,9 @@
 #pragma once
 
-#include <gnunet/platform.h>
-#include <gnunet/gnunet_cadet_service.h>
 #include <gnunet_channels/channel.h>
+
+struct GNUNET_CADET_Channel;
+struct GNUNET_PeerIdentity;
 
 namespace gnunet_channels {
 
