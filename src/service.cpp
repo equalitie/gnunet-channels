@@ -36,6 +36,11 @@ shared_ptr<Cadet>& Service::cadet()
     return _impl->cadet;
 }
 
+string Service::identity() const
+{
+	return GNUNET_i2s_full(&_impl->identity);
+}
+
 void Service::async_setup_impl(OnSetup on_setup)
 {
     // TODO: Return error code

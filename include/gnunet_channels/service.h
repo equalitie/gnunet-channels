@@ -22,6 +22,8 @@ public:
 
     asio::io_service& get_io_service();
 
+    std::string identity() const;
+
     ~Service();
 
     // TODO: This should be private.
