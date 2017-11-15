@@ -22,6 +22,8 @@ public:
 
     void run(Handler);
 
+    asio::io_service& get_io_service();
+
 private:
     static void callback(void*, const GNUNET_MessageHeader*);
 

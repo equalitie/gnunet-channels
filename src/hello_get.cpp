@@ -8,6 +8,11 @@ HelloGet::HelloGet(Scheduler& scheduler)
     : _scheduler(scheduler)
 { }
 
+asio::io_service& HelloGet::get_io_service()
+{
+    return _scheduler.get_io_service();
+}
+
 void HelloGet::run(Handler h)
 {
     _scheduler.post([ s = shared_from_this()
@@ -15,6 +20,7 @@ void HelloGet::run(Handler h)
                     ] (const GNUNET_CONFIGURATION_Handle *config) {
 
             struct Task {
+                asio::io_service::work work;
                 Handler h;
                 shared_ptr<HelloGet> s;
                 GNUNET_TRANSPORT_HelloGetHandle *get = nullptr;
@@ -22,7 +28,7 @@ void HelloGet::run(Handler h)
                 static void call(void* ctx, const GNUNET_MessageHeader* hello)
                 {
                     auto t = static_cast<Task*>(ctx);
-                    auto& ios = t->s->_scheduler.get_io_service();
+                    auto& ios = t->s->get_io_service();
 
                     GNUNET_TRANSPORT_hello_get_cancel(t->get);
                     t->get = nullptr;
@@ -37,7 +43,9 @@ void HelloGet::run(Handler h)
                 }
             };
 
-            auto task = new Task{move(h), move(s)};
+            auto task = new Task{ asio::io_service::work(s->get_io_service())
+                                , move(h)
+                                , move(s) };
 
             auto get = GNUNET_TRANSPORT_hello_get( config
                                                  , GNUNET_TRANSPORT_AC_ANY

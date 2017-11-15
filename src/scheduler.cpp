@@ -37,7 +37,6 @@ Scheduler::Scheduler(string config, asio::io_service& ios)
                        Scheduler::program_run, this,
                        GNUNET_YES);
 
-            cerr << "GNUnet thread finished." << endl;
             assert(ret == GNUNET_OK);
         });
 }
