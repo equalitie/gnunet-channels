@@ -16,10 +16,8 @@ gnunet-arm -s -c $cfg2 &
 
 sleep 1
 
-echo "* Peer info on peer1"
-gnunet-peerinfo -s -c $cfg1
-echo "* Peer info on peer2"
-gnunet-peerinfo -s -c $cfg2
+echo "* Peer info on peer1 $(gnunet_id_of $cfg1)"
+echo "* Peer info on peer2 $(gnunet_id_of $cfg2)"
 
 # This is not necessary, but it makes developing easier/faster.
 echo "Interconnecting the two"

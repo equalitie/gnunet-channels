@@ -12,3 +12,8 @@ export GNUNET_TEST_HOME=$repo/scripts
 
 export cfg1=$repo/scripts/peer1.conf
 export cfg2=$repo/scripts/peer2.conf
+
+function gnunet_id_of {
+    cfg=$1
+    gnunet-peerinfo -s -c $cfg | sed -e "s/^I am peer \`\([[:alnum:]]\+\).*/\1/"
+}
