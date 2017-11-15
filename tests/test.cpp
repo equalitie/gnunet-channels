@@ -43,8 +43,6 @@ public:
             Service service(config, ios);
 
             asio::spawn(ios, [&] (auto yield) {
-                    // TODO: We shouldn't need to instantiate work here.
-                    asio::io_service::work w(ios);
                     sys::error_code ec;
                     service.async_setup(yield[ec]);
 

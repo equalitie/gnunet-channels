@@ -79,7 +79,15 @@ void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_
     }
 
     _impl->channel = ch.get_impl();
-    _impl->on_accept = move(on_accept);
+
+    // TODO: Not sure how efficient it is to wrap the on_accept functor here.
+    // We do need to create a io_service's work to prevent the main loop from
+    // exiting once the lambda posted to the scheduler (below) is executed.
+    // Perhaps on_accet could have a custom struct to hold OnAccept and the
+    // work?
+    _impl->on_accept = [ w         = asio::io_service::work(get_io_service())
+                       , on_accept = move(on_accept)
+                       ] (sys::error_code ec) { on_accept(ec); };
 
     scheduler().post([impl = _impl, port_hash] {
             if (impl->was_destroyed) {
