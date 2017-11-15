@@ -65,3 +65,30 @@ target_link_libraries(chat
     ${Boost_LIBRARIES})
 
 ################################################################################
+project(tests)
+
+find_package(Boost ${BOOST_VERSION} COMPONENTS system unit_test_framework thread coroutine REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -ggdb ${SANITIZE}")
+
+include_directories(
+    "${Boost_INCLUDE_DIR}"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${GNUNET_BIN_DIR}/include")
+
+file(GLOB sources
+    "${CMAKE_SOURCE_DIR}/tests/test.cpp")
+
+# TODO: How to add this define only for this project?
+add_definitions(-DBOOST_TEST_DYN_LINK)
+add_executable(tests ${sources})
+add_dependencies(tests gnunet-channels)
+
+target_link_libraries(tests
+    ${CMAKE_BINARY_DIR}/libgnunet-channels.a
+    ${GNUNET_BIN_DIR}/lib/libgnunethello.so
+    ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
+    ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
+    ${GNUNET_BIN_DIR}/lib/libgnunetcadet.so
+    ${Boost_LIBRARIES})
+
+################################################################################
