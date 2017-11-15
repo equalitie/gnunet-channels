@@ -202,6 +202,12 @@ void ChannelImpl::connect_channel_ended( void *cls
 {
     auto ch = static_cast<ChannelImpl*>(cls);
     ch->_channel = nullptr;
+
+    ch->get_io_service().post([ch = ch->shared_from_this()] {
+            if (!ch->_on_connect) return;
+            auto f = move(ch->_on_connect);
+            f(asio::error::connection_reset);
+        });
 }
 
 // Executed in GNUnet's thread
