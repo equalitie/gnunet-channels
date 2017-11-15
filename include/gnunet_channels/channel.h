@@ -36,9 +36,7 @@ public:
     asio::io_service& get_io_service();
 
     template<class Token>
-    typename asio::async_result
-        < typename asio::handler_type<Token, void(sys::error_code)>::type
-        >::type
+    void
     connect( std::string target_id
            , const std::string& shared_secret
            , Token&&);
@@ -74,9 +72,7 @@ private:
 
 //--------------------------------------------------------------------
 template<class Token>
-typename asio::async_result
-    < typename asio::handler_type<Token, void(sys::error_code)>::type
-    >::type
+void
 Channel::connect( std::string target_id
                 , const std::string& shared_secret
                 , Token&& token)
@@ -90,7 +86,7 @@ Channel::connect( std::string target_id
 
     connect_impl(std::move(target_id), shared_secret, std::move(handler));
 
-    return result.get();
+    result.get();
 }
 
 template<class T> class Debug;
