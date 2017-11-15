@@ -61,7 +61,6 @@ private:
     void receive_impl(std::vector<asio::mutable_buffer>, OnReceive);
     void write_impl(std::vector<uint8_t>, OnWrite);
 
-    void set_handle(GNUNET_CADET_Channel*);
     ChannelImpl* get_impl() { return _impl.get(); }
 
 private:

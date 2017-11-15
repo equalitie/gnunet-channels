@@ -46,11 +46,6 @@ void Channel::receive_impl(vector<asio::mutable_buffer> bufs, OnReceive h)
     _impl->receive(move(bufs), move(h));
 }
 
-void Channel::set_handle(GNUNET_CADET_Channel* h)
-{
-    _impl->_channel = h;
-}
-
 Channel::~Channel()
 {
     // Could have been moved from.

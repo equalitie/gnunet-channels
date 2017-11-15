@@ -13,7 +13,7 @@ struct CadetPort::Impl : public enable_shared_from_this<Impl> {
     shared_ptr<Cadet> cadet;
     GNUNET_CADET_Port *port = nullptr;
     OnAccept on_accept;
-    Channel* channel = nullptr;
+    ChannelImpl* channel = nullptr;
     bool was_destroyed = false;
 
     Impl(shared_ptr<Cadet> cadet)
@@ -51,7 +51,7 @@ void* CadetPort::channel_incoming( void *cls
 {
     auto impl = static_cast<Impl*>(cls);
 
-    impl->channel->set_handle(handle);
+    impl->channel->_channel = handle;
 
     impl->get_io_service().post([impl = impl->shared_from_this()] {
             if (!impl->on_accept) {
@@ -66,7 +66,7 @@ void* CadetPort::channel_incoming( void *cls
             f(sys::error_code());
         });
 
-    return impl->channel->get_impl();
+    return impl->channel;
 }
 
 void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_accept)
@@ -78,7 +78,7 @@ void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_
         _impl->accept_fail(asio::error::operation_aborted);
     }
 
-    _impl->channel = &ch;
+    _impl->channel = ch.get_impl();
     _impl->on_accept = move(on_accept);
 
     scheduler().post([impl = _impl, port_hash] {
