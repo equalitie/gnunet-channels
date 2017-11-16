@@ -32,22 +32,26 @@ private:
     using Func = function<void(Service& service, asio::yield_context yield)>;
 
 public:
-    Fork(string config, Func func)
+    Fork(string message, string config, Func func)
+        : message(message)
     {
         pid = fork();
         BOOST_CHECK(pid >= 0);
-        if (!is_child()) return;
+        if (!is_child()) {
+            return;
+        }
 
         {
             asio::io_service ios;
             Service service(config, ios);
 
             asio::spawn(ios, [&] (auto yield) {
+                    asio::io_service::work w(ios);
                     sys::error_code ec;
                     service.async_setup(yield[ec]);
 
                     if (ec) {
-                        cerr << "Failed to set up gnunet service: "
+                        cerr << message << " Failed to set up gnunet service: "
                              << ec.message() << endl;
                         return;
                     }
@@ -57,23 +61,26 @@ public:
                     }
                     catch (const exception& e) {
                         BOOST_ERROR("Exception was thrown");
+                        _exit(1);
                     }
                 });
 
             ios.run();
         }
-        exit(0);
+        _exit(0);
     }
 
     ~Fork() {
         if (is_child()) return;
         int status;
         waitpid(pid, &status, 0);
+        BOOST_REQUIRE(WIFEXITED(status));
     }
 
     bool is_child() const { return pid == 0; }
 
 private:
+    string message;
     pid_t pid;
 };
 
@@ -100,7 +107,7 @@ struct FailTimeout {
                         BOOST_ERROR("Task \""
                                    + _task_name
                                    + "\" takes too long");
-                        exit(1);
+                        _exit(1);
                     }
                 }
             });
@@ -163,13 +170,13 @@ BOOST_AUTO_TEST_CASE(test_get_id_config2)
 }
 
 //--------------------------------------------------------------------
-BOOST_AUTO_TEST_CASE(test)
+BOOST_AUTO_TEST_CASE(test1)
 {
     const string port = random_port();
 
     string server_id = get_id(config1);
 
-    Fork n1(config1, [&](Service& service, auto yield) {
+    Fork n1("server", config1, [&](Service& service, auto yield) {
             FailTimeout ft(3s, "server");
 
             sys::error_code ec;
@@ -178,7 +185,7 @@ BOOST_AUTO_TEST_CASE(test)
             p.open(channel, port, yield);
         });
 
-    Fork n2(config2, [&](Service& service, auto yield) {
+    Fork n2("client", config2, [&](Service& service, auto yield) {
             FailTimeout ft(4s, "client");
 
             sys::error_code ec;
@@ -188,6 +195,82 @@ BOOST_AUTO_TEST_CASE(test)
             Channel channel(service);
             channel.connect(server_id, port, yield);
         });
+
+    // TODO: Why is this needed?
+    int status; wait(&status);
+}
+
+//--------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(test2)
+{
+    const string port = random_port();
+
+    string server_id = get_id(config1);
+
+    Fork n1("server", config1, [&](Service& service, auto yield) {
+            FailTimeout ft(3s, "server");
+
+            sys::error_code ec;
+            Channel channel(service);
+            CadetPort p(service);
+            p.open(channel, port, yield);
+        });
+
+    Fork n2("client", config2, [&](Service& service, auto yield) {
+            FailTimeout ft(4s, "client");
+
+            sys::error_code ec;
+            asio::steady_timer t(service.get_io_service());
+            t.expires_from_now(1s);
+            t.async_wait(yield[ec]);
+            Channel channel(service);
+            channel.connect(server_id, port, yield);
+
+            uint8_t byte_buf = 0;
+
+            asio::async_read(channel, asio::buffer(&byte_buf, 1), yield[ec]);
+
+            BOOST_CHECK(ec == asio::error::connection_reset);
+        });
+
+    // TODO: Why is this needed?
+    int status; wait(&status);
+}
+
+//--------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(test3)
+{
+    const string port = random_port();
+
+    string server_id = get_id(config1);
+
+    Fork n1("server", config1, [&](Service& service, auto yield) {
+            FailTimeout ft(3s, "server");
+
+            sys::error_code ec;
+            Channel channel(service);
+            CadetPort p(service);
+            p.open(channel, port, yield);
+
+            uint8_t byte_buf = 0;
+            asio::async_read(channel, asio::buffer(&byte_buf, 1), yield[ec]);
+
+            BOOST_CHECK(ec == asio::error::connection_reset);
+        });
+
+    Fork n2("client", config2, [&](Service& service, auto yield) {
+            FailTimeout ft(4s, "client");
+
+            sys::error_code ec;
+            asio::steady_timer t(service.get_io_service());
+            t.expires_from_now(1s);
+            t.async_wait(yield[ec]);
+            Channel channel(service);
+            channel.connect(server_id, port, yield);
+        });
+
+    // TODO: Why is this needed?
+    int status; wait(&status);
 }
 
 //--------------------------------------------------------------------
