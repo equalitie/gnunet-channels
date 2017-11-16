@@ -32,8 +32,8 @@ private:
     using Func = function<void(Service& service, asio::yield_context yield)>;
 
 public:
-    Fork(string message, string config, Func func)
-        : message(message)
+    Fork(string name, string config, Func func)
+        : name(name)
     {
         pid = fork();
         BOOST_CHECK(pid >= 0);
@@ -51,8 +51,9 @@ public:
                     service.async_setup(yield[ec]);
 
                     if (ec) {
-                        cerr << message << " Failed to set up gnunet service: "
-                             << ec.message() << endl;
+                        cerr << "Failed to set up gnunet service: "
+                             << ec.message()
+                             << " (process " << name << ")" << endl;
                         return;
                     }
 
@@ -73,14 +74,33 @@ public:
     ~Fork() {
         if (is_child()) return;
         int status;
-        waitpid(pid, &status, 0);
-        BOOST_REQUIRE(WIFEXITED(status));
+        pid_t w = waitpid(pid, &status, 0);
+
+        if (w == -1) {
+            // Child may have already exited, in which case we don't care
+            if (errno != ECHILD) {
+                perror("waitpid");
+                BOOST_REQUIRE(w != -1);
+            }
+        }
+        else {
+            if (WIFEXITED(status)) {
+                auto exit_code = WEXITSTATUS(status);
+                BOOST_REQUIRE(exit_code == 0);
+            } else if (WIFSIGNALED(status)) {
+                cerr << "killed by signal " << WTERMSIG(status) << endl;
+            } else if (WIFSTOPPED(status)) {
+                cerr << "stopped by signal " << WSTOPSIG(status) << endl;
+            } else if (WIFCONTINUED(status)) {
+                cerr << "continued" << endl;
+            }
+        }
     }
 
     bool is_child() const { return pid == 0; }
 
 private:
-    string message;
+    string name;
     pid_t pid;
 };
 
@@ -170,7 +190,7 @@ BOOST_AUTO_TEST_CASE(test_get_id_config2)
 }
 
 //--------------------------------------------------------------------
-BOOST_AUTO_TEST_CASE(test1)
+BOOST_AUTO_TEST_CASE(test_connect)
 {
     const string port = random_port();
 
@@ -201,7 +221,7 @@ BOOST_AUTO_TEST_CASE(test1)
 }
 
 //--------------------------------------------------------------------
-BOOST_AUTO_TEST_CASE(test2)
+BOOST_AUTO_TEST_CASE(test_connect_and_close)
 {
     const string port = random_port();
 
@@ -238,35 +258,53 @@ BOOST_AUTO_TEST_CASE(test2)
 }
 
 //--------------------------------------------------------------------
-BOOST_AUTO_TEST_CASE(test3)
+BOOST_AUTO_TEST_CASE(test_two_connects)
 {
     const string port = random_port();
 
     string server_id = get_id(config1);
 
     Fork n1("server", config1, [&](Service& service, auto yield) {
-            FailTimeout ft(3s, "server");
+            FailTimeout ft(4s, "server");
 
             sys::error_code ec;
-            Channel channel(service);
             CadetPort p(service);
-            p.open(channel, port, yield);
 
-            uint8_t byte_buf = 0;
-            asio::async_read(channel, asio::buffer(&byte_buf, 1), yield[ec]);
+            Channel channel1(service);
+            Channel channel2(service);
 
-            BOOST_CHECK(ec == asio::error::connection_reset);
+            p.open(channel1, port, yield[ec]);
+            BOOST_REQUIRE(ec == sys::error_code());
+
+            p.open(channel2, port, yield[ec]);
+            BOOST_REQUIRE(ec == sys::error_code());
+
+            // Prevent the channels from being destroyed for a second.
+            asio::steady_timer t(service.get_io_service());
+            t.expires_from_now(1s);
+            t.async_wait(yield[ec]);
         });
 
     Fork n2("client", config2, [&](Service& service, auto yield) {
             FailTimeout ft(4s, "client");
 
             sys::error_code ec;
+
             asio::steady_timer t(service.get_io_service());
             t.expires_from_now(1s);
             t.async_wait(yield[ec]);
-            Channel channel(service);
-            channel.connect(server_id, port, yield);
+
+            {
+                Channel channel(service);
+                channel.connect(server_id, port, yield[ec]);
+                BOOST_REQUIRE(ec == sys::error_code());
+            }
+
+            {
+                Channel channel(service);
+                channel.connect(server_id, port, yield[ec]);
+                BOOST_REQUIRE(ec == sys::error_code());
+            }
         });
 
     // TODO: Why is this needed?
