@@ -204,9 +204,13 @@ void ChannelImpl::connect_channel_ended( void *cls
     ch->_channel = nullptr;
 
     ch->get_io_service().post([ch = ch->shared_from_this()] {
-            if (!ch->_on_connect) return;
-            auto f = move(ch->_on_connect);
-            f(asio::error::connection_reset);
+            auto flush = [] (auto&& f, auto... args) {
+                if (f) f(asio::error::connection_reset, args...);
+            };
+
+            flush(move(ch->_on_receive), 0);
+            flush(move(ch->_on_send));
+            flush(move(ch->_on_connect));
         });
 }
 
