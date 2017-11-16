@@ -94,6 +94,8 @@ void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_
                 return impl->accept_fail(asio::error::operation_aborted);
             }
 
+            if (impl->port) return;
+
             GNUNET_MQ_MessageHandler handlers[] = {
                 GNUNET_MQ_MessageHandler{ ChannelImpl::check_data
                                         , ChannelImpl::handle_data
@@ -126,6 +128,7 @@ CadetPort::~CadetPort()
     auto& s = scheduler();
 
     s.post([impl = move(_impl)] {
+        if (!impl->port) return;
         GNUNET_CADET_close_port(impl->port);
         impl->port = nullptr;
     });
