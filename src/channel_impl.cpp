@@ -204,7 +204,7 @@ void ChannelImpl::connect_channel_ended( void *cls
     ch->_channel = nullptr;
 
     ch->get_io_service().post([ch = ch->shared_from_this()] {
-            auto flush = [] (auto&& f, auto... args) {
+            auto flush = [] (auto f, auto... args) {
                 if (f) f(asio::error::connection_reset, args...);
             };
 
