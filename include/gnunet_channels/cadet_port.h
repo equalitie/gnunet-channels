@@ -42,10 +42,6 @@ private:
                           , GNUNET_CADET_Channel *handle
                           , const GNUNET_PeerIdentity *initiator);
 
-    static
-    void connect_channel_ended( void *cls
-                              , const GNUNET_CADET_Channel *channel);
-
 private:
     asio::io_service& _ios;
     std::shared_ptr<Impl> _impl;

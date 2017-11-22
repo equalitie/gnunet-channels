@@ -15,6 +15,7 @@ struct CadetPort::Impl : public enable_shared_from_this<Impl> {
     OnAccept on_accept;
     ChannelImpl* channel = nullptr;
     bool was_destroyed = false;
+    std::queue<shared_ptr<ChannelImpl>> queued_connections;
 
     Impl(shared_ptr<Cadet> cadet)
         : cadet(move(cadet)) {}
@@ -49,24 +50,53 @@ void* CadetPort::channel_incoming( void *cls
                                  , GNUNET_CADET_Channel *handle
                                  , const GNUNET_PeerIdentity *initiator)
 {
-    auto impl = static_cast<Impl*>(cls);
+    auto port_impl = static_cast<Impl*>(cls);
 
-    impl->channel->_channel = handle;
+    // NOTE: The pointer returned from this function will be used as a `cls` in
+    // the ChannelImpl::connect_channel_ended callback.
 
-    impl->get_io_service().post([impl = impl->shared_from_this()] {
-            if (!impl->on_accept) {
+    // TODO: Add a mutex around port_impl->{channel, cadet}
+    shared_ptr<ChannelImpl> ret;
+    bool queue_it = false;
+
+    if (port_impl->channel) {
+        ret = port_impl->channel->shared_from_this();
+        port_impl->channel = nullptr;
+    }
+    else {
+        ret = make_shared<ChannelImpl>(port_impl->cadet);
+        queue_it = true;
+    }
+
+    ret->_handle = handle;
+
+    port_impl->get_io_service().post(
+        [ port_impl = port_impl->shared_from_this()
+        , queue_it
+        , ret
+        ] {
+            if (!port_impl->on_accept) {
+                if (queue_it) {
+                    port_impl->queued_connections.push(ret);
+                }
                 return;
             }
 
-            if (impl->was_destroyed) {
-                return impl->accept_fail(asio::error::operation_aborted);
+            if (port_impl->was_destroyed) {
+                return port_impl->accept_fail(asio::error::operation_aborted);
             }
 
-            auto f = move(impl->on_accept);
-            f(sys::error_code());
+            if (queue_it) {
+                // TODO: If the size of queued_connection is too big, destroy one.
+                port_impl->queued_connections.push(ret);
+            }
+            else {
+                auto f = move(port_impl->on_accept);
+                f(sys::error_code());
+            }
         });
 
-    return impl->channel;
+    return ret.get();
 }
 
 void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_accept)
@@ -76,6 +106,27 @@ void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_
 
     if (_impl->on_accept) {
         _impl->accept_fail(asio::error::operation_aborted);
+    }
+
+    if (!_impl->queued_connections.empty()) {
+        auto ch_impl = move(_impl->queued_connections.front());
+        _impl->queued_connections.pop();
+
+        _ios.post([ ch_impl   = move(ch_impl)
+                  , on_accept = move(on_accept)
+                  , port_impl = _impl
+                  , &ch
+                  ] {
+                if (port_impl->was_destroyed) {
+                    ch_impl->close();
+                    return on_accept(asio::error::operation_aborted);
+                }
+
+                ch.set_impl(move(ch_impl));
+                on_accept(sys::error_code());
+            });
+
+        return;
     }
 
     _impl->channel = ch.get_impl();

@@ -16,6 +16,7 @@ ChannelImpl::ChannelImpl(shared_ptr<Cadet> cadet)
     : _cadet(move(cadet))
     , _scheduler(_cadet->scheduler())
 {
+    assert(_cadet);
 }
 
 void ChannelImpl::send(vector<uint8_t> data, OnSend on_send)
@@ -37,17 +38,31 @@ void ChannelImpl::do_send(vector<uint8_t> data, OnSend on_send)
     scheduler().post([ self = shared_from_this()
                      , data = move(data)
                      ] () mutable {
-        if (!self->_channel) return;
+        if (!self->_handle) return;
 
-        GNUNET_MessageHeader *msg;
-        GNUNET_MQ_Envelope *env
-            = GNUNET_MQ_msg_extra( msg
-                                 , data.size()
-                                 , GNUNET_MESSAGE_TYPE_CADET_CLI);
+        constexpr size_t max_size = GNUNET_CONSTANTS_MAX_CADET_MESSAGE_SIZE
+                                  - sizeof(GNUNET_MessageHeader);
 
-        GNUNET_memcpy(&msg[1], &data[0], data.size());
-        GNUNET_MQ_notify_sent(env, ChannelImpl::data_sent, self.get());
-        GNUNET_MQ_send(GNUNET_CADET_get_mq(self->_channel), env);
+        asio::const_buffer buf(data.data(), data.size());
+
+        while (auto size = min(max_size, asio::buffer_size(buf))) {
+            GNUNET_MessageHeader *msg;
+            GNUNET_MQ_Envelope *env
+                = GNUNET_MQ_msg_extra( msg
+                                     , size
+                                     , GNUNET_MESSAGE_TYPE_CADET_CLI);
+
+            GNUNET_memcpy(&msg[1], asio::buffer_cast<const void*>(buf), size);
+
+            // Only get notification once the last buffer has been sent.
+            if (asio::buffer_size(buf) <= max_size) {
+                GNUNET_MQ_notify_sent(env, ChannelImpl::data_sent, self.get());
+            }
+
+            GNUNET_MQ_send(GNUNET_CADET_get_mq(self->_handle), env);
+
+            buf = buf + size;
+        }
 
         preserve(move(self));
     });
@@ -116,7 +131,7 @@ void ChannelImpl::handle_data(void *cls, const GNUNET_MessageHeader *m)
 
     // TODO: Would be nice to only call this when the _recv_queue is empty.
     // But that requires some locking.
-    GNUNET_CADET_receive_done(ch->_channel);
+    GNUNET_CADET_receive_done(ch->_handle);
 
     ch->get_io_service().post([ s = ch->shared_from_this()
                               , d = move(payload) ] {
@@ -177,7 +192,7 @@ void ChannelImpl::connect( string target_id
         int flags = GNUNET_CADET_OPTION_DEFAULT
                   | GNUNET_CADET_OPTION_RELIABLE;
 
-        self->_channel
+        self->_handle
             = GNUNET_CADET_channel_create( cadet->handle()
                                          , self.get()
                                          , &pid
@@ -201,7 +216,7 @@ void ChannelImpl::connect_channel_ended( void *cls
                                        , const GNUNET_CADET_Channel *channel)
 {
     auto ch = static_cast<ChannelImpl*>(cls);
-    ch->_channel = nullptr;
+    ch->_handle = nullptr;
 
     ch->get_io_service().post([ch = ch->shared_from_this()] {
             auto flush = [] (auto f, auto... args) {
@@ -261,9 +276,9 @@ void ChannelImpl::close()
     _scheduler.post([ s = shared_from_this()
                     , c = move(_cadet)
                     ] () mutable {
-            if (s->_channel) {
-                GNUNET_CADET_channel_destroy(s->_channel);
-                s->_channel = nullptr;
+            if (s->_handle) {
+                GNUNET_CADET_channel_destroy(s->_handle);
+                s->_handle = nullptr;
             }
 
             preserve(move(s));

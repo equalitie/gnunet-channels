@@ -24,6 +24,29 @@ Channel::Channel(std::shared_ptr<ChannelImpl> impl)
 {
 }
 
+Channel::Channel(Channel&& other)
+    : _scheduler(other._scheduler)
+    , _ios(other._ios)
+{
+    set_impl(other._impl);
+}
+
+Channel& Channel::operator=(Channel&& other)
+{
+    assert(&_ios == &other._ios);
+    assert(&_scheduler == &other._scheduler);
+
+    set_impl(move(other._impl));
+
+    return *this;
+}
+
+void Channel::set_impl(std::shared_ptr<ChannelImpl> impl)
+{
+    if (_impl) _impl->close();
+    _impl = move(impl);
+}
+
 asio::io_service& Channel::get_io_service()
 {
     return _ios;

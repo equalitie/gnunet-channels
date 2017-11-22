@@ -30,8 +30,8 @@ public:
     Channel(const Channel&) = delete;
     Channel& operator=(const Channel&) = delete;
 
-    Channel(Channel&&) = default;
-    Channel& operator=(Channel&&) = default;
+    Channel(Channel&&);
+    Channel& operator=(Channel&&);
 
     asio::io_service& get_io_service();
 
@@ -62,6 +62,7 @@ private:
     void write_impl(std::vector<uint8_t>, OnWrite);
 
     ChannelImpl* get_impl() { return _impl.get(); }
+    void set_impl(std::shared_ptr<ChannelImpl>);
 
 private:
     Scheduler& _scheduler;

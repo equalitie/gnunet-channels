@@ -66,7 +66,7 @@ private:
 
     // This one is mutable and can only be modified (and read) inside the
     // GNUnet's thread.
-    GNUNET_CADET_Channel* _channel = nullptr;
+    GNUNET_CADET_Channel* _handle = nullptr;
     std::shared_ptr<Cadet> _cadet;
     Scheduler& _scheduler;
 
