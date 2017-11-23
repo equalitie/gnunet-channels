@@ -28,7 +28,7 @@ Channel::Channel(Channel&& other)
     : _scheduler(other._scheduler)
     , _ios(other._ios)
 {
-    set_impl(other._impl);
+    set_impl(move(other._impl));
 }
 
 Channel& Channel::operator=(Channel&& other)
@@ -41,7 +41,7 @@ Channel& Channel::operator=(Channel&& other)
     return *this;
 }
 
-void Channel::set_impl(std::shared_ptr<ChannelImpl> impl)
+void Channel::set_impl(shared_ptr<ChannelImpl> impl)
 {
     if (_impl) _impl->close();
     _impl = move(impl);
