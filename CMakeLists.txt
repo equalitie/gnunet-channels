@@ -62,12 +62,14 @@ target_link_libraries(chat
     ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
     ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
     ${GNUNET_BIN_DIR}/lib/libgnunetcadet.so
-    ${Boost_LIBRARIES})
+    ${Boost_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT})
 
 ################################################################################
 project(tests)
 
 find_package(Boost ${BOOST_VERSION} COMPONENTS system unit_test_framework thread coroutine REQUIRED)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -ggdb ${SANITIZE}")
 
 include_directories(
@@ -89,6 +91,7 @@ target_link_libraries(tests
     ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
     ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
     ${GNUNET_BIN_DIR}/lib/libgnunetcadet.so
-    ${Boost_LIBRARIES})
+    ${Boost_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT})
 
 ################################################################################

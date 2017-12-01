@@ -1,0 +1,35 @@
+dependencies:
+  override:
+    - sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test
+    - sudo add-apt-repository --yes ppa:george-edison55/cmake-3.x
+
+    - sudo apt-get update
+
+    - sudo apt-get install
+    - sudo apt-get install cmake autopoint libtool libunistring-dev libsqlite3-dev libgcrypt20-dev libidn11-dev zlib1g-dev texinfo
+
+    - ls; pwd; nproc
+
+    - export CXX=g++-5
+    - export CC=gcc-5
+    - cd ../
+    - root=`pwd`
+
+    # Install boost
+    - boost_major=1
+    - boost_minor=58
+    - boost_patch=0
+    - boost=boost_${boost_major}_${boost_minor}_${boost_patch}
+    - wget http://downloads.sourceforge.net/project/boost/boost/${boost_major}.${boost_minor}.${boost_patch}/${boost}.tar.bz2
+    - tar xf ${boost}.tar.bz2
+    - cd ${boost}
+    - ./bootstrap.sh
+    - ./b2 install -d+0 --link=shared --prefix=${root}/boost --with-system --with-program_options --with-test --with-coroutine
+    - cd ../
+
+    # Build
+    - cd gnunet-channels
+    - mkdir build
+    - cd build
+    - cmake .. -DBOOST_INCLUDEDIR=${root}/boost/include -DBOOST_LIBRARYDIR=${root}/boost/lib
+    - make
