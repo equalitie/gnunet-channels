@@ -1,0 +1,52 @@
+version: 2
+executorType: machine
+
+stages:
+  build:
+    environment:
+      - CMAKE_PATH: "/home/circleci/cmake-3.10.0-Linux-x86_64/bin"
+
+    steps:
+      - type: checkout
+
+      - type: shell
+        name: Install cmake
+        command: |
+          cd ~
+          wget --quiet https://cmake.org/files/v3.10/cmake-3.10.0-Linux-x86_64.tar.gz
+          tar -xf cmake-3.10.0-Linux-x86_64.tar.gz
+
+      - type: shell
+        name: Install other dependencies
+        command: |
+          sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install g++-5 autopoint libtool libunistring-dev libsqlite3-dev libgcrypt20-dev libidn11-dev zlib1g-dev texinfo
+
+      - type: shell
+        name: Install Boost
+        command: |
+          ls; pwd;
+          cd ~
+          boost_major=1
+          boost_minor=58
+          boost_patch=0
+          boost=boost_${boost_major}_${boost_minor}_${boost_patch}
+          wget http://downloads.sourceforge.net/project/boost/boost/${boost_major}.${boost_minor}.${boost_patch}/${boost}.tar.bz2
+          tar xf ${boost}.tar.bz2
+          cd ${boost}
+          ./bootstrap.sh
+          ./b2 install -j `nproc` -d+0 --link=shared --prefix=${HOME}/boost --with-system --with-program_options --with-test --with-coroutine
+
+      - type: shell
+        name: Build
+        command: |
+          git submodule sync --recursive
+          git submodule update --recursive --init
+          mkdir build
+          cd build
+          export CXX=g++-5
+          export CC=gcc-5
+          export PATH="$CMAKE_PATH:$PATH"
+          cmake .. -DBOOST_INCLUDEDIR=~/boost/include -DBOOST_LIBRARYDIR=~/boost/lib
+          make

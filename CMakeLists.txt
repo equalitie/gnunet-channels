@@ -2,7 +2,8 @@ cmake_minimum_required (VERSION 3.5)
 set(GLOB BOOST_VERSION 1.55)
 include(ExternalProject)
 ################################################################################
-set(SANITIZE "-fsanitize=address")
+# NOTE: https://stackoverflow.com/questions/37603238/fsanitize-not-using-gold-linker-in-gcc-6-1
+set(SANITIZE "-fsanitize=address -fuse-ld=gold")
 ################################################################################
 set(GNUNET_SRC_DIR "${CMAKE_SOURCE_DIR}/gnunet")
 set(GNUNET_BIN_DIR "${CMAKE_BINARY_DIR}/gnunet")
@@ -62,12 +63,14 @@ target_link_libraries(chat
     ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
     ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
     ${GNUNET_BIN_DIR}/lib/libgnunetcadet.so
-    ${Boost_LIBRARIES})
+    ${Boost_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT})
 
 ################################################################################
 project(tests)
 
 find_package(Boost ${BOOST_VERSION} COMPONENTS system unit_test_framework thread coroutine REQUIRED)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wall -ggdb ${SANITIZE}")
 
 include_directories(
@@ -89,6 +92,7 @@ target_link_libraries(tests
     ${GNUNET_BIN_DIR}/lib/libgnunettransport.so
     ${GNUNET_BIN_DIR}/lib/libgnunetutil.so
     ${GNUNET_BIN_DIR}/lib/libgnunetcadet.so
-    ${Boost_LIBRARIES})
+    ${Boost_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT})
 
 ################################################################################
