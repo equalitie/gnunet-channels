@@ -1,15 +1,4 @@
-CircleCI [![CircleCI](https://circleci.com/gh/equalitie/gnunet-channels/tree/master.svg?style=svg)](https://circleci.com/gh/equalitie/gnunet-channels/tree/master)
-
-# Dependencies
-
-* libtool
-* autopoint
-* libunistring-dev
-* libsqlite3-dev
-* libgcrypt20-dev
-* libidn11-dev
-* zlib1g-dev
-* texinfo # TODO: Figure out how to tell the makefile not to generate documentation
+[![CircleCI](https://circleci.com/gh/equalitie/gnunet-channels/tree/master.svg?style=shield)](https://circleci.com/gh/equalitie/gnunet-channels/tree/master)
 
 # Generate GNUnet's documentation
 
