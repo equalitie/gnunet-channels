@@ -202,7 +202,9 @@ BOOST_AUTO_TEST_CASE(test_connect)
             sys::error_code ec;
             Channel channel(service);
             CadetPort p(service);
-            p.open(channel, port, yield);
+            p.open(port, yield);
+            p.accept(channel, yield);
+            p.close();
         });
 
     Fork n2("client", config2, [&](Service& service, auto yield) {
@@ -233,7 +235,8 @@ BOOST_AUTO_TEST_CASE(test_connect_and_close)
             sys::error_code ec;
             Channel channel(service);
             CadetPort p(service);
-            p.open(channel, port, yield);
+            p.open(port, yield);
+            p.accept(channel, yield);
         });
 
     Fork n2("client", config2, [&](Service& service, auto yield) {
@@ -273,10 +276,11 @@ BOOST_AUTO_TEST_CASE(test_two_connects)
             Channel channel1(service);
             Channel channel2(service);
 
-            p.open(channel1, port, yield[ec]);
+            p.open(port, yield[ec]);
             BOOST_REQUIRE(ec == sys::error_code());
-
-            p.open(channel2, port, yield[ec]);
+            p.accept(channel1, yield[ec]);
+            BOOST_REQUIRE(ec == sys::error_code());
+            p.accept(channel2, yield[ec]);
             BOOST_REQUIRE(ec == sys::error_code());
 
             // Prevent the channels from being destroyed for a second.

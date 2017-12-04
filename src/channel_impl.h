@@ -45,6 +45,8 @@ public:
     void receive(std::vector<asio::mutable_buffer>, OnReceive);
     void close();
 
+    void set_handle(GNUNET_CADET_Channel* handle) { _handle = handle; }
+
     ~ChannelImpl();
 
 private:

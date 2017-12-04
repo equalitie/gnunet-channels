@@ -1,6 +1,6 @@
 #include <gnunet/platform.h>
+#include <cassert>
 #include "channel_impl.h"
-#include <iostream>
 #include <gnunet_channels/cadet_port.h>
 #include <gnunet_channels/channel.h>
 #include <gnunet_channels/error.h>
@@ -9,178 +9,213 @@
 using namespace std;
 using namespace gnunet_channels;
 
-struct CadetPort::Impl : public enable_shared_from_this<Impl> {
-    shared_ptr<Cadet> cadet;
-    GNUNET_CADET_Port *port = nullptr;
-    OnAccept on_accept;
-    ChannelImpl* channel = nullptr;
-    bool was_destroyed = false;
-    std::queue<shared_ptr<ChannelImpl>> queued_connections;
+/*
+ * Accessed only from the gnunet thread.
+ */
+struct OpenPort {
+    asio::io_service& ios;
+    const std::shared_ptr<Cadet> cadet;
+    GNUNET_CADET_Port* port;
+    std::queue<std::shared_ptr<ChannelImpl>> channel_queue;
+    std::queue<std::function<void(std::shared_ptr<ChannelImpl>)>> waiter_queue;
 
-    Impl(shared_ptr<Cadet> cadet)
-        : cadet(move(cadet)) {}
+    OpenPort(asio::io_service& ios_, const std::shared_ptr<Cadet>& cadet_)
+        : ios(ios_)
+        , cadet(cadet_)
+        , port(nullptr)
+    {}
+};
 
-    asio::io_service& get_io_service() {
-        return cadet->get_io_service();
-    }
+struct CadetPort::Impl {
+    asio::io_service& ios;
+    const std::shared_ptr<Cadet> cadet;
+    std::unique_ptr<OpenPort> port;
 
-    auto accept_fail(sys::error_code ec) {
-        get_io_service().post([ ec
-                              , c = cadet
-                              , f = move(on_accept)] { f(ec); });
-    };
+    Impl(std::shared_ptr<Cadet> cadet_)
+        : ios(cadet_->get_io_service())
+        , cadet(std::move(cadet_))
+    {}
 };
 
 CadetPort::CadetPort(Service& service)
     : CadetPort(service.cadet())
 {}
 
-CadetPort::CadetPort(shared_ptr<Cadet> cadet)
-    : _ios(cadet->get_io_service())
-    , _impl(make_shared<Impl>(move(cadet)))
-{}
+CadetPort::CadetPort(std::shared_ptr<Cadet> cadet)
+    : _impl(std::make_unique<Impl>(cadet))
+{
+}
+
+CadetPort::~CadetPort()
+{
+    close();
+}
 
 Scheduler& CadetPort::scheduler()
 {
     return _impl->cadet->scheduler();
 }
 
-// Executed in GNUnet's thread
-void* CadetPort::channel_incoming( void *cls
-                                 , GNUNET_CADET_Channel *handle
-                                 , const GNUNET_PeerIdentity *initiator)
+asio::io_service& CadetPort::get_io_service()
 {
-    auto port_impl = static_cast<Impl*>(cls);
-
-    // NOTE: The pointer returned from this function will be used as a `cls` in
-    // the ChannelImpl::connect_channel_ended callback.
-
-    // TODO: Add a mutex around port_impl->{channel, cadet}
-    shared_ptr<ChannelImpl> ret;
-    bool queue_it = false;
-
-    if (port_impl->channel) {
-        ret = port_impl->channel->shared_from_this();
-        port_impl->channel = nullptr;
-    }
-    else {
-        ret = make_shared<ChannelImpl>(port_impl->cadet);
-        queue_it = true;
-    }
-
-    ret->_handle = handle;
-
-    port_impl->get_io_service().post(
-        [ port_impl = port_impl->shared_from_this()
-        , queue_it
-        , ret
-        ] {
-            if (!port_impl->on_accept) {
-                if (queue_it) {
-                    port_impl->queued_connections.push(ret);
-                }
-                return;
-            }
-
-            if (port_impl->was_destroyed) {
-                return port_impl->accept_fail(asio::error::operation_aborted);
-            }
-
-            if (queue_it) {
-                // TODO: If the size of queued_connection is too big, destroy one.
-                port_impl->queued_connections.push(ret);
-            }
-            else {
-                auto f = move(port_impl->on_accept);
-                f(sys::error_code());
-            }
-        });
-
-    return ret.get();
+    return _impl->ios;
 }
 
-void CadetPort::open_impl(Channel& ch, const string& shared_secret, OnAccept on_accept)
+// Executed in GNUnet's thread
+static void* channel_incoming(void* cls, GNUNET_CADET_Channel* channel_handle, const GNUNET_PeerIdentity* initiator)
 {
+    OpenPort* port = static_cast<OpenPort*>(cls);
+    std::shared_ptr<ChannelImpl> channel_impl = std::make_shared<ChannelImpl>(port->cadet);
+    channel_impl->set_handle(channel_handle);
+
+    if (port->waiter_queue.empty()) {
+        std::function<void(std::shared_ptr<ChannelImpl>)> handler = port->waiter_queue.front();
+        port->waiter_queue.pop();
+        port->ios.post([handler = std::move(handler), channel_impl] {
+            handler(channel_impl);
+        });
+    } else {
+        port->channel_queue.push(channel_impl);
+    }
+
+    return channel_impl.get();
+}
+
+void CadetPort::open_impl(const std::string& shared_secret, std::function<void(sys::error_code)> handler)
+{
+    if (_impl->port) {
+        assert(false);
+    }
+
+    _impl->port = std::make_unique<OpenPort>(_impl->ios, _impl->cadet);
+
     GNUNET_HashCode port_hash;
     GNUNET_CRYPTO_hash(shared_secret.c_str(), shared_secret.size(), &port_hash);
 
-    if (_impl->on_accept) {
-        _impl->accept_fail(asio::error::operation_aborted);
-    }
+    scheduler().post([
+        this,
+        port_hash,
+        handler = std::move(handler)
+    ] () mutable {
+        GNUNET_MQ_MessageHandler handlers[] = {
+            GNUNET_MQ_MessageHandler{
+                ChannelImpl::check_data,
+                ChannelImpl::handle_data,
+                NULL,
+                GNUNET_MESSAGE_TYPE_CADET_CLI,
+                sizeof(GNUNET_MessageHeader)
+            },
+            GNUNET_MQ_handler_end()
+        };
 
-    if (!_impl->queued_connections.empty()) {
-        auto ch_impl = move(_impl->queued_connections.front());
-        _impl->queued_connections.pop();
+        _impl->port->port = GNUNET_CADET_open_port(
+            _impl->cadet->handle(),
+            &port_hash,
+            channel_incoming,
+            _impl->port.get(),
+            NULL,
+            ChannelImpl::connect_channel_ended,
+            handlers
+        );
 
-        _ios.post([ ch_impl   = move(ch_impl)
-                  , on_accept = move(on_accept)
-                  , port_impl = _impl
-                  , &ch
-                  ] {
-                if (port_impl->was_destroyed) {
-                    ch_impl->close();
-                    return on_accept(asio::error::operation_aborted);
-                }
-
-                ch.set_impl(move(ch_impl));
-                on_accept(sys::error_code());
+        if (_impl->port->port) {
+            _impl->port->ios.post([handler = std::move(handler)] {
+                handler(sys::error_code());
             });
+        } else {
+            _impl->port->ios.post([
+                handler = std::move(handler),
+                this
+            ] () mutable {
+                _impl->port = nullptr;
+                handler(error::failed_to_open_port);
+            });
+        }
+    });
+}
 
+void CadetPort::close()
+{
+    if (!_impl->port) {
         return;
     }
 
-    _impl->channel = ch.get_impl();
+    if (_impl->port && !_impl->port->port) {
+        assert(false);
+    }
 
-    // TODO: Not sure how efficient it is to wrap the on_accept functor here.
-    // We do need to create a io_service's work to prevent the main loop from
-    // exiting once the lambda posted to the scheduler (below) is executed.
-    // Perhaps on_accet could have a custom struct to hold OnAccept and the
-    // work?
-    _impl->on_accept = [ w         = asio::io_service::work(get_io_service())
-                       , on_accept = move(on_accept)
-                       ] (sys::error_code ec) { on_accept(ec); };
+    std::unique_ptr<OpenPort> port = std::move(_impl->port);
+    _impl->port = nullptr;
 
-    scheduler().post([impl = _impl, port_hash] {
-            if (impl->was_destroyed) {
-                return impl->accept_fail(asio::error::operation_aborted);
-            }
-
-            if (impl->port) return;
-
-            GNUNET_MQ_MessageHandler handlers[] = {
-                GNUNET_MQ_MessageHandler{ ChannelImpl::check_data
-                                        , ChannelImpl::handle_data
-                                        , NULL
-                                        , GNUNET_MESSAGE_TYPE_CADET_CLI
-                                        , sizeof(GNUNET_MessageHeader) },
-                GNUNET_MQ_handler_end()
-            };
-
-            impl->port = GNUNET_CADET_open_port( impl->cadet->handle()
-                                               , &port_hash
-                                               , CadetPort::channel_incoming
-                                               , impl.get()
-                                               , NULL
-                                               , ChannelImpl::connect_channel_ended
-                                               , handlers);
-
-            if (!impl->port) {
-                impl->accept_fail(error::failed_to_open_port);
-            }
-        });
+    // Is there a better way to avoid this std::unique_ptr mess?
+    scheduler().post([port_ = port.release()] {
+        std::unique_ptr<OpenPort> port(port_);
+        GNUNET_CADET_close_port(port->port);
+        while (!port->channel_queue.empty()) {
+            auto channel = std::move(port->channel_queue.front());
+            port->channel_queue.pop();
+            channel->close();
+        }
+        while (!port->waiter_queue.empty()) {
+            auto waiter = std::move(port->waiter_queue.front());
+            port->waiter_queue.pop();
+            port->ios.post([waiter = std::move(waiter)] {
+                waiter(nullptr);
+            });
+        }
+    });
 }
 
-CadetPort::~CadetPort()
+void CadetPort::accept_impl(Channel& channel, std::function<void(sys::error_code)> handler)
 {
-    _impl->was_destroyed = true;
+    if (!_impl->port) {
+        assert(false);
+    }
 
-    // Need to get the scheduler here because the function internally uses
-    // _impl which is moved from in the next step.
-    auto& s = scheduler();
+    auto submit_channel = [
+        &channel,
+        handler = std::move(handler)
+    ] (std::shared_ptr<ChannelImpl> channel_impl) {
+        if (channel_impl) {
+            channel = Channel(channel_impl);
+            handler(sys::error_code());
+        } else {
+            handler(sys::errc::make_error_code(sys::errc::operation_canceled));
+        }
+    };
 
-    s.post([impl = move(_impl)] {
-        if (!impl->port) return;
-        GNUNET_CADET_close_port(impl->port);
-        impl->port = nullptr;
+    scheduler().post([
+        submit_channel = std::move(submit_channel),
+        port = _impl->port.get()
+    ] {
+        if (port->channel_queue.empty()) {
+            port->waiter_queue.push(std::move(submit_channel));
+        } else {
+            std::shared_ptr<ChannelImpl> channel_impl = port->channel_queue.front();
+            port->channel_queue.pop();
+            port->ios.post([
+                submit_channel = std::move(submit_channel),
+                channel_impl
+            ] {
+                submit_channel(channel_impl);
+            });
+        }
+    });
+}
+
+void CadetPort::cancel_accept()
+{
+    if (!_impl->port) {
+        return;
+    }
+
+    scheduler().post([port = _impl->port.get()] {
+        while (!port->waiter_queue.empty()) {
+            auto waiter = port->waiter_queue.front();
+            port->waiter_queue.pop();
+            port->ios.post([waiter = std::move(waiter)] {
+                waiter(nullptr);
+            });
+        }
     });
 }

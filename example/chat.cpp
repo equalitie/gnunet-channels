@@ -89,19 +89,22 @@ static void accept_and_run_chat( unique_ptr<Channel>& channel
 {
     sys::error_code ec;
 
+    CadetPort p(service);
+    p.open(port, yield[ec]);
+    if (ec) {
+        cerr << "Failed to open port: " << ec.message() << endl;
+        return;
+    }
+
     cout << "Accepting on port \"" << port << "\"" << endl;
-
-    {
-        CadetPort p(service);
-        p.open(*channel, port, yield[ec]);
-
-        if (ec) {
-            cerr << "Failed to accept: " << ec.message() << endl;
-            return;
-        }
+    p.accept(*channel, yield[ec]);
+    if (ec) {
+        cerr << "Failed to accept: " << ec.message() << endl;
+        return;
     }
 
     cout << "Accepted" << endl;
+    p.close();
 
     run_chat(channel, yield);
 }

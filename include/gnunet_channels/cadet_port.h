@@ -14,54 +14,78 @@ class CadetPort {
     struct Impl;
 
 public:
-    using OnAccept = std::function<void(sys::error_code)>;
-
-public:
     CadetPort(Service&);
     CadetPort(std::shared_ptr<Cadet>);
 
     CadetPort(const CadetPort&)            = delete;
     CadetPort& operator=(const CadetPort&) = delete;
 
-    template<class Token>
-    typename asio::async_result
-        < typename asio::handler_type<Token, void(sys::error_code)>::type
-        >::type
-    open(Channel&, const std::string& shared_secret, Token&&);
-
-    Scheduler& scheduler();
-    asio::io_service& get_io_service() { return _ios; }
-
+    /*
+     * Destructor may be called only when no open() handler is pending.
+     */
     ~CadetPort();
 
-private:
-    void open_impl(Channel&, const std::string& shared_secret, OnAccept);
+    Scheduler& scheduler();
+    asio::io_service& get_io_service();
 
-    static
-    void* channel_incoming( void *cls
-                          , GNUNET_CADET_Channel *handle
-                          , const GNUNET_PeerIdentity *initiator);
+    /*
+     * open() may be called only when the Port is closed, and no simultaneous open() handler is pending.
+     */
+    template<class Token>
+    typename asio::async_result<typename asio::handler_type<Token, void(sys::error_code)>::type>::type
+    open(const std::string& shared_secret, Token&& token);
+
+    /*
+     * close() may be called only when no open() handler is pending.
+     */
+    void close();
+
+    /*
+     * accept() may be called only when the Port is open.
+     */
+    template<class Token>
+    typename asio::async_result<typename asio::handler_type<Token, void(sys::error_code)>::type>::type
+    accept(Channel& channel, Token&& token);
+
+    /*
+     * Cancels all active accept() calls.
+     */
+    void cancel_accept();
 
 private:
-    asio::io_service& _ios;
-    std::shared_ptr<Impl> _impl;
+    void open_impl(const std::string& shared_secret, std::function<void(sys::error_code)> handler);
+
+    void accept_impl(Channel& channel, std::function<void(sys::error_code)> handler);
+
+private:
+    std::unique_ptr<Impl> _impl;
 };
 
 //--------------------------------------------------------------------
 template<class Token>
-typename asio::async_result
-    < typename asio::handler_type<Token, void(sys::error_code)>::type
-    >::type
-CadetPort::open(Channel& ch, const std::string& shared_secret, Token&& token)
+typename asio::async_result<typename asio::handler_type<Token, void(sys::error_code)>::type>::type
+CadetPort::open(const std::string& shared_secret, Token&& token)
 {
-    using Handler = typename asio::handler_type< Token
-                                               , void(sys::error_code)
-                                               >::type;
+    using Handler = typename asio::handler_type<Token, void(sys::error_code)>::type;
 
     Handler handler(std::forward<Token>(token));
     asio::async_result<Handler> result(handler);
 
-    open_impl(ch, shared_secret, std::move(handler));
+    open_impl(shared_secret, std::move(handler));
+
+    return result.get();
+}
+
+template<class Token>
+typename asio::async_result<typename asio::handler_type<Token, void(sys::error_code)>::type>::type
+CadetPort::accept(Channel& channel, Token&& token)
+{
+    using Handler = typename asio::handler_type<Token, void(sys::error_code)>::type;
+
+    Handler handler(std::forward<Token>(token));
+    asio::async_result<Handler> result(handler);
+
+    accept_impl(channel, std::move(handler));
 
     return result.get();
 }
