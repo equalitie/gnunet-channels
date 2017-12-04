@@ -1,3 +1,5 @@
+CircleCI [![CircleCI](https://circleci.com/gh/equalitie/gnunet-channels/tree/master.svg?style=svg)](https://circleci.com/gh/equalitie/gnunet-channels/tree/master)
+
 # Dependencies
 
 * libtool
