@@ -68,7 +68,7 @@ static void* channel_incoming(void* cls, GNUNET_CADET_Channel* channel_handle, c
     std::shared_ptr<ChannelImpl> channel_impl = std::make_shared<ChannelImpl>(port->cadet);
     channel_impl->set_handle(channel_handle);
 
-    if (port->waiter_queue.empty()) {
+    if (!port->waiter_queue.empty()) {
         std::function<void(std::shared_ptr<ChannelImpl>)> handler = port->waiter_queue.front();
         port->waiter_queue.pop();
         port->ios.post([handler = std::move(handler), channel_impl] {
