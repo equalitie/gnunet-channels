@@ -20,8 +20,8 @@ using namespace std;
 using namespace gnunet_channels;
 using namespace chrono_literals;
 
-static const string config1 = "../scripts/peer1.conf";
-static const string config2 = "../scripts/peer2.conf";
+static const string config1 = "./peer1.conf";
+static const string config2 = "./peer2.conf";
 
 //--------------------------------------------------------------------
 // Unfortunately GNUnet won't let us run more than one node per

@@ -96,3 +96,10 @@ target_link_libraries(tests
     ${CMAKE_THREAD_LIBS_INIT})
 
 ################################################################################
+enable_testing()
+
+add_test(basic_tests
+    ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
+                                          "${CMAKE_BINARY_DIR}")
+
+################################################################################
