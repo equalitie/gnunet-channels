@@ -53,33 +53,6 @@ stages:
       - type: shell
         name: Run tests
         command: |
-          repo=`pwd`
-          root=$repo/build/gnunet
           cd build
-
-          cfg1=$repo/scripts/peer1.conf
-          cfg2=$repo/scripts/peer2.conf
-
-          mkdir -p $repo/scripts/gnunet1
-          mkdir -p $repo/scripts/gnunet2
-
-          export LD_LIBRARY_PATH=$root/lib:~/boost/lib:$LD_LIBRARY_PATH
-          export PATH=$root/bin:$PATH
-          
-          export GNUNET_TEST_HOME=$repo/scripts
-
-          gnunet-arm -s -c $cfg1 &
-          gnunet-arm -s -c $cfg2 &
-
-          sleep 3
-
-          echo "Showing peerinfo"
-          gnunet-peerinfo -s -c $cfg1
-          gnunet-peerinfo -s -c $cfg2
-
-          echo "Interconnecting the two peers"
-          gnunet-peerinfo -c $cfg2 -p `gnunet-peerinfo -c $cfg1 -g` &
-
-          sleep 5
-
-          ./tests --log_level=test_suite
+          export LD_LIBRARY_PATH=~/boost/lib:$LD_LIBRARY_PATH
+          make test ARGS="-V"
