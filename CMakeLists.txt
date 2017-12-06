@@ -98,6 +98,7 @@ target_link_libraries(tests
 ################################################################################
 enable_testing()
 
+# To run these tests, execute: 'make test ARGS="-V"'
 add_test(basic_tests
     ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
                                           "${CMAKE_BINARY_DIR}")
