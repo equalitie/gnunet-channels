@@ -34,6 +34,7 @@ export cfg2=$CMAKE_BINARY_DIR/test_dir/peer2.conf
 mkdir -p $CMAKE_BINARY_DIR/test_dir/gnunet1
 mkdir -p $CMAKE_BINARY_DIR/test_dir/gnunet2
 
+pkill 'gnunet-*' -9 || true
 trap "pkill 'gnunet-*' -9 || true" INT EXIT
 
 gnunet-arm -s -c $cfg1 2>/dev/null &
@@ -42,6 +43,10 @@ gnunet-arm -s -c $cfg2 2>/dev/null &
 # This is not necessary, but it makes developing easier/faster.
 gnunet-peerinfo -c $cfg2 -p `gnunet-peerinfo -c $cfg1 -g`
 
-sleep 5
+sleep 3
 
-$CMAKE_BINARY_DIR/tests --log_level=test_suite
+if [ -z "$3" ]; then
+    $CMAKE_BINARY_DIR/tests --log_level=test_suite
+else
+    $CMAKE_BINARY_DIR/tests --log_level=test_suite --run_test=$3
+fi

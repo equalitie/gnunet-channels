@@ -99,8 +99,27 @@ target_link_libraries(tests
 enable_testing()
 
 # To run these tests, execute: 'make test ARGS="-V"'
-add_test(basic_tests
+
+# NOTE: Normally we'd just call the run_test.sh script once without the third
+#       parameter (specifying which test to run). But for some reason sometimes
+#       running them all at once fails.
+add_test(test_get_id_configs
     ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
-                                          "${CMAKE_BINARY_DIR}")
+                                          "${CMAKE_BINARY_DIR}"
+                                          "test_get_id_config1,test_get_id_config2")
+add_test(test_connect
+    ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
+                                          "${CMAKE_BINARY_DIR}"
+                                          "test_connect")
+
+add_test(test_connect_and_close
+    ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
+                                          "${CMAKE_BINARY_DIR}"
+                                          "test_connect_and_close")
+
+add_test(test_two_connects
+    ${CMAKE_SOURCE_DIR}/tests/run_test.sh "${CMAKE_SOURCE_DIR}"
+                                          "${CMAKE_BINARY_DIR}"
+                                          "test_two_connects")
 
 ################################################################################
