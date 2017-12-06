@@ -5,20 +5,20 @@ include(ExternalProject)
 # NOTE: https://stackoverflow.com/questions/37603238/fsanitize-not-using-gold-linker-in-gcc-6-1
 set(SANITIZE "-fsanitize=address -fuse-ld=gold")
 ################################################################################
-set(GNUNET_SRC_DIR "${CMAKE_SOURCE_DIR}/gnunet")
+set(GNUNET_SRC_DIR "${CMAKE_BINARY_DIR}/gnunet-src")
 set(GNUNET_BIN_DIR "${CMAKE_BINARY_DIR}/gnunet")
 
-if(NOT BUILD_GNUNET)
-    set(BUILD_GNUNET 0)
+# Useful for debugging GNUnet itself.
+if(NOT ALWAYS_BUILD_GNUNET)
+    set(ALWAYS_BUILD_GNUNET 0)
 endif()
 
 externalproject_add(gnunet
-    SOURCE_DIR ${IPFS_CACHE_SRC_DIR}
-    DOWNLOAD_COMMAND ""
-    BUILD_ALWAYS ${BUILD_GNUNET}
+    DOWNLOAD_COMMAND rsync -ru ${CMAKE_SOURCE_DIR}/gnunet/ ${GNUNET_SRC_DIR}/
+    BUILD_ALWAYS ${ALWAYS_BUILD_GNUNET}
     CONFIGURE_COMMAND cd ${GNUNET_SRC_DIR}
                    && sh -c "[ -f ./configure ] || ./bootstrap"
-                   && sh -c "[ -f Makefile ] || ./configure --prefix=${CMAKE_BINARY_DIR}/gnunet"
+                   && sh -c "[ -f Makefile ] || ./configure --prefix=${GNUNET_BIN_DIR}"
     BUILD_COMMAND $(MAKE) -C ${GNUNET_SRC_DIR}
     INSTALL_COMMAND $(MAKE) install -C ${GNUNET_SRC_DIR}
     PREFIX gnunet-build)
