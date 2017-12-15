@@ -2,8 +2,13 @@
 
 # Generate GNUnet's documentation
 
+Instructions are provided in gnunet/doc/documentation/README.txt, but
+in short:
+
 ```
-$ cd gnunet/doc
-$ texi2any --html --no-split --no-headers --force gnunet.texi
-$ texi2any --html --no-split --no-headers --force gnunet-c-tutorial.texi
+$ cd gnunet
+$ sh bootstrap
+$ ./configure --enable-documentation
+$ cd doc
+$ make pdf
 ```
