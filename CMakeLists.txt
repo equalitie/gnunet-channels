@@ -8,17 +8,15 @@ set(SANITIZE "-fsanitize=address -fuse-ld=gold")
 set(GNUNET_SRC_DIR "${CMAKE_BINARY_DIR}/gnunet-src")
 set(GNUNET_BIN_DIR "${CMAKE_BINARY_DIR}/gnunet")
 
-# Useful for debugging GNUnet itself.
-if(NOT ALWAYS_BUILD_GNUNET)
-    set(ALWAYS_BUILD_GNUNET 0)
-endif()
-
+# NOTE: If you modify the original sources and want GNUnet to be rebuilt,
+#       delete the ${CMAKE_BINARY_PATH}/gnunet-build/src/gnunet-stamp/gnunet-download
+#       file.
 externalproject_add(gnunet
-    DOWNLOAD_COMMAND rsync -ru ${CMAKE_SOURCE_DIR}/gnunet/ ${GNUNET_SRC_DIR}/
     BUILD_ALWAYS ${ALWAYS_BUILD_GNUNET}
+    DOWNLOAD_COMMAND rsync -ru ${CMAKE_SOURCE_DIR}/gnunet/ ${GNUNET_SRC_DIR}/
     CONFIGURE_COMMAND cd ${GNUNET_SRC_DIR}
                    && sh -c "[ -f ./configure ] || ./bootstrap"
-                   && sh -c "[ -f Makefile ] || ./configure --prefix=${GNUNET_BIN_DIR}"
+                   && sh -c "[ -f Makefile ] || ./configure --prefix=${GNUNET_BIN_DIR} --disable-testing"
     BUILD_COMMAND $(MAKE) -C ${GNUNET_SRC_DIR}
     INSTALL_COMMAND $(MAKE) install -C ${GNUNET_SRC_DIR}
     PREFIX gnunet-build)
