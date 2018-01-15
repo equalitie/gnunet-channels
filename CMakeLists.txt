@@ -18,7 +18,9 @@ externalproject_add(gnunet
                    && sh -c "[ -f ./configure ] || ./bootstrap"
                    && sh -c "[ -f Makefile ] || ./configure --prefix=${GNUNET_BIN_DIR} --disable-testing"
     BUILD_COMMAND $(MAKE) -C ${GNUNET_SRC_DIR}
-    INSTALL_COMMAND $(MAKE) install -C ${GNUNET_SRC_DIR}
+    # GNUnet seems to have trouble installing with the number of simultaneous
+    # jobs -j > 1
+    INSTALL_COMMAND $(MAKE) install -j1 -C ${GNUNET_SRC_DIR}
     PREFIX gnunet-build)
 
 ################################################################################
