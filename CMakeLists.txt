@@ -2,9 +2,6 @@ cmake_minimum_required (VERSION 3.5)
 set(GLOB BOOST_VERSION 1.55)
 include(ExternalProject)
 ################################################################################
-# NOTE: https://stackoverflow.com/questions/37603238/fsanitize-not-using-gold-linker-in-gcc-6-1
-set(SANITIZE "-fsanitize=address -fuse-ld=gold")
-################################################################################
 set(GNUNET_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/gnunet-src")
 set(GNUNET_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/gnunet-bin")
 
