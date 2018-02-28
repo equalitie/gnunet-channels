@@ -49,6 +49,8 @@ public:
             , class WriteHandler>
     void async_write_some(const ConstBufferSequence&, WriteHandler&&);
 
+    void close() { assert(0 && "TODO"); }
+
     ~Channel();
 
 private:
