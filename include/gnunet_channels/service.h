@@ -29,6 +29,8 @@ public:
     // TODO: This should be private.
     std::shared_ptr<Cadet>& cadet();
 
+    void close();
+
 private:
     void async_setup_impl(OnSetup);
 

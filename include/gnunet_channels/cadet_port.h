@@ -32,6 +32,8 @@ public:
     Scheduler& scheduler();
     asio::io_service& get_io_service() { return _ios; }
 
+    void close();
+
     ~CadetPort();
 
 private:

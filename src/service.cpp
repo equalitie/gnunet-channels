@@ -11,7 +11,7 @@ struct Service::Impl {
         : scheduler(move(config_path), ios)
     {}
 
-    bool was_destroyed = false;
+    bool was_closed = false;
 
     Scheduler                     scheduler;
     std::shared_ptr<CadetConnect> cadet_connect;
@@ -52,14 +52,20 @@ void Service::async_setup_impl(OnSetup on_setup)
     _impl->cadet_connect->run([ impl     = _impl
                               , on_setup = move(on_setup)
                               ] (shared_ptr<Cadet> cadet) {
-            if (impl->was_destroyed) return;
+            if (impl->was_closed) {
+                return on_setup(boost::asio::error::operation_aborted);
+            }
+
+            assert(cadet);
 
             impl->cadet = move(cadet);
 
             impl->hello_get = make_shared<HelloGet>(impl->scheduler);
             impl->hello_get->run([ impl     = move(impl)
                                  , on_setup = move(on_setup)] (HelloMessage m) {
-                    if (impl->was_destroyed) return;
+                    if (impl->was_closed) {
+                        return on_setup(boost::asio::error::operation_aborted);
+                    }
 
                     impl->identity = m.peer_identity();
                     on_setup(sys::error_code());
@@ -67,7 +73,21 @@ void Service::async_setup_impl(OnSetup on_setup)
         });
 }
 
+void Service::close()
+{
+    _impl->was_closed = true;
+
+    if (_impl->cadet_connect) {
+        _impl->cadet_connect.reset();
+    }
+
+    if (_impl->hello_get) {
+        _impl->hello_get->close();
+        _impl->hello_get.reset();
+    }
+}
+
 Service::~Service()
 {
-    _impl->was_destroyed = true;
+    close();
 }
